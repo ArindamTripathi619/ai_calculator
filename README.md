@@ -83,8 +83,6 @@ To use Google's Gemini API, you need an API key.
 Create a `.env` file in the project root and add the following:
 ```plaintext
 GEMINI_API_KEY=your_api_key_here
-FLASK_ENV=development
-FLASK_DEBUG=True
 ```
 Replace `your_api_key_here` with the actual API key you obtained.
 
