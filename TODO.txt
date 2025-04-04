@@ -1,0 +1,15 @@
+Right now, I plan to do these things in a step by step manner:
+
+1. Optimize Backend Performance
+    Instead of saving images temporarily (temp_image.png), process them directly in memory.
+    Add a rate limiter to prevent excessive API requests.
+
+2. Add SEO & Social Features
+    Add meta tags (description, og:image, etc.).
+    Use Google Analytics to track usage.
+
+
+
+
+
+How to apply these features to my project ?

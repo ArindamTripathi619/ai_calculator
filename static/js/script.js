@@ -144,8 +144,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Set canvas size
   function resizeCanvas() {
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    const canvasContainer = document.querySelector(".canvas-container");
+    canvas.width = canvasContainer.offsetWidth;
+    canvas.height = canvasContainer.offsetHeight;
 
     // Restore current state if it exists
     if (undoStack.length > 0) {
