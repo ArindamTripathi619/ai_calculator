@@ -19,7 +19,7 @@ A modern AI-powered calculator app built with Flask and integrated with Google's
 ![Home Page](screenshots/home_page.png)
 
 ### Question
-![Dark Mode](screenshots/question.png)
+![Question](screenshots/question.png)
 
 ### Calculation Example
 ![Calculation Example](screenshots/solution.png)
