@@ -1,0 +1,303 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Poppins", sans-serif;
+  background: linear-gradient(to right, #8ec5fc, #e0c3fc);
+  overflow: hidden;
+  animation: fadeIn 1s ease-in-out;
+}
+
+/* Slide-down effect for the toolbar */
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 12px;
+  color: white;
+  border-bottom: 3px solid #ffcc00;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.7s ease-out;
+  flex-direction: row;
+}
+
+/* Button click effect */
+.button:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease-in-out;
+}
+
+/* Canvas fade-in */
+@keyframes fadeInCanvas {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Color Tools */
+.color-tools {
+  display: flex;
+  gap: 8px;
+}
+
+.color-tool {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid white;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+
+.color-tool:hover {
+  transform: scale(1.1);
+}
+
+.active {
+  border: 3px solid #ffcc00;
+  box-shadow: 0 0 8px #ffcc00;
+}
+
+/* Eraser Button */
+.eraser {
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M16.24 3.56l4.95 4.94c.78.79.78 2.05 0 2.84L12 20.53a4.008 4.008 0 0 1-5.66 0L2.81 17.1c-.78-.78-.78-2.05 0-2.83l6.59-6.59c.78-.78 2.05-.78 2.83 0l4.01 4.01M3 21h18v2H3v-2z"/></svg>')
+    center center no-repeat;
+  background-color: #444;
+  background-size: 20px;
+  border-radius: 8px;
+  padding: 8px;
+  transition: background 0.3s ease-in-out;
+}
+
+.eraser:hover {
+  background-color: #666;
+}
+
+/* Buttons */
+.button {
+  padding: 10px 18px;
+  font-size: 14px;
+  background: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-left: 5px;
+  box-shadow: 0 4px 8px rgba(74, 144, 226, 0.4);
+  transition: all 0.3s ease-in-out;
+}
+
+.button:hover {
+  background: #357abd;
+  box-shadow: 0 6px 12px rgba(74, 144, 226, 0.6);
+}
+
+.button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Clear Button */
+.clear-button {
+  background: #f44336;
+  box-shadow: 0 4px 8px rgba(244, 67, 54, 0.4);
+}
+
+.clear-button:hover {
+  background: #d32f2f;
+  box-shadow: 0 6px 12px rgba(244, 67, 54, 0.6);
+}
+
+/* Undo & Redo Buttons */
+.history-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.undo-button,
+.redo-button {
+  background: #ffab70;
+  box-shadow: 0 4px 8px rgba(255, 171, 112, 0.4);
+}
+
+.undo-button:hover,
+.redo-button:hover {
+  background: #e59460;
+  box-shadow: 0 6px 12px rgba(255, 171, 112, 0.6);
+}
+
+/* Canvas Styling */
+.canvas-container {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 60px);
+  background: #faf9f6;
+  border-radius: 15px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  padding: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: fadeInCanvas 0.8s ease-out;
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+}
+
+/* Result Overlay */
+.result-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Result pop-in animation */
+@keyframes popIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.result-box {
+  background: white;
+  padding: 24px;
+  border-radius: 10px;
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  animation: popIn 0.4s ease-out;
+}
+
+.close-result {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  transition: all 0.3s ease-in-out;
+}
+
+.close-result:hover {
+  background: #ddd;
+}
+
+/* Onboarding Modal */
+.onboarding-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.onboarding-content {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  max-width: 400px;
+  animation: popIn 0.4s ease-out;
+}
+
+.onboarding-navigation {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.onboarding-navigation .button {
+  flex: 1;
+  margin: 0 5px;
+}
+
+.onboarding-navigation .button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Progress Indicators */
+.progress-indicators {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  margin: 0 5px;
+  background: #ccc;
+  border-radius: 50%;
+  transition: background 0.3s ease;
+}
+
+.dot.active {
+  background: #4a90e2;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: center;
+    padding: 8px;
+  }
+
+  .canvas-container {
+    height: calc(100vh - 120px); /* Adjust height for toolbar */
+  }
+
+  .button {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+}
