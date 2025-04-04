@@ -3,3 +3,4 @@ pillow
 python-dotenv
 google-generativeai
 flask-cors
+flask-limiter

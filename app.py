@@ -8,6 +8,9 @@ from io import BytesIO
 from PIL import Image
 from dotenv import load_dotenv
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +29,13 @@ CORS(app)  # Enable CORS for all routes
 def serve_index():
     with open('static/index.html', 'r') as file:
         return file.read()
+    
+# Initialize Flask-Limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"]  # Example limits
+)
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
@@ -40,8 +50,8 @@ def calculate():
         img = Image.open(BytesIO(image_bytes))
         
         # Save temporarily (optional)
-        temp_image_path = "temp_image.png"
-        img.save(temp_image_path)
+        # temp_image_path = "temp_image.png"
+        # img.save(temp_image_path)
         
         # Prompt for Gemini API
         prompt = (
@@ -59,8 +69,8 @@ def calculate():
         response = model.generate_content([prompt, img])
         
         # Clean up
-        if os.path.exists(temp_image_path):
-            os.remove(temp_image_path)
+        # if os.path.exists(temp_image_path):
+        #     os.remove(temp_image_path)
         
         # Clean the response to remove any markdown code block markers
         cleaned_response = response.text
