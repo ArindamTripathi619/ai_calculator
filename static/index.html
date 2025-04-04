@@ -5,7 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Math Calculator</title>
     <link rel="icon" type="image/x-icon" href="static/favicon.ico" />
-    <link rel="stylesheet" href="static/css/styles.css">
+    <link rel="stylesheet" href="static/css/styles.css" />
+    <!-- Google tag (gtag.js) -->
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-5VTVDZF19Y"
+    ></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+
+      gtag("config", "G-5VTVDZF19Y");
+    </script>
   </head>
   <body>
     <div class="toolbar">
@@ -39,11 +53,37 @@
       </div>
       <div style="display: flex; gap: 10px">
         <div class="history-buttons">
-          <button class="button undo-button" id="undoButton" disabled title="Undo your last action">Undo</button>
-          <button class="button redo-button" id="redoButton" disabled title="Redo your last undone action">Redo</button>
+          <button
+            class="button undo-button"
+            id="undoButton"
+            disabled
+            title="Undo your last action"
+          >
+            Undo
+          </button>
+          <button
+            class="button redo-button"
+            id="redoButton"
+            disabled
+            title="Redo your last undone action"
+          >
+            Redo
+          </button>
         </div>
-        <button class="button clear-button" id="clearCanvas" title="Clear the canvas">Clear</button>
-        <button class="button" id="calculateButton" title="Calculate the equation">Calculate</button>
+        <button
+          class="button clear-button"
+          id="clearCanvas"
+          title="Clear the canvas"
+        >
+          Clear
+        </button>
+        <button
+          class="button"
+          id="calculateButton"
+          title="Calculate the equation"
+        >
+          Calculate
+        </button>
       </div>
     </div>
     <div class="canvas-container">
@@ -68,7 +108,8 @@
       <div class="onboarding-content">
         <h2 id="onboardingTitle">Welcome to AI Calculator</h2>
         <p id="onboardingDescription">
-          This app helps you solve mathematical equations using AI. Here's how to use it:
+          This app helps you solve mathematical equations using AI. Here's how
+          to use it:
         </p>
         <ul id="onboardingSteps">
           <li>Draw your equation on the canvas.</li>
