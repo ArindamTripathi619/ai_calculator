@@ -38,6 +38,7 @@ limiter = Limiter(
 )
 
 @app.route('/calculate', methods=['POST'])
+@limiter.limit("10 per minute")  # Limit to 10 requests per minute
 def calculate():
     try:
         # Get image data from request
@@ -104,4 +105,5 @@ if __name__ == '__main__':
     # Make sure static folder exists
     if not os.path.exists('static'):
         os.makedirs('static')
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
