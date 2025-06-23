@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import google.generativeai as genai
 import os
 import base64
@@ -11,6 +11,8 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+import logging
+
 
 # Load environment variables
 load_dotenv()
@@ -18,24 +20,47 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Configure Gemini API
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(model_name='gemini-1.5-pro')
+model = genai.GenerativeModel(model_name='gemini-1.5-flash')
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
 
-# Serve static files
+# Set up CORS
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if os.getenv('CORS_ALLOWED_ORIGINS') else []
+
+if CORS_ALLOWED_ORIGINS:
+    CORS(app, origins=CORS_ALLOWED_ORIGINS)
+else:
+    CORS(app)  # Fallback: allow all (not recommended for production)
+
+# Serve static files using send_from_directory
 @app.route('/')
-@app.route('/index.html')
 def serve_index():
-    with open('static/index.html', 'r') as file:
-        return file.read()
-    
-# Initialize Flask-Limiter
+    return send_from_directory('static', 'index.html')
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
+
+# Initialize Flask-Limiter with Redis for production
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
 limiter = Limiter(
-    get_remote_address,
+    key_func=get_remote_address,
     app=app,
-    default_limits=["200 per day", "50 per hour"]  # Example limits
+    storage_uri=REDIS_URL,
+    default_limits=["200 per day", "50 per hour"]
 )
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return send_from_directory('static', '404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return send_from_directory('static', '500.html'), 500
 
 @app.route('/calculate', methods=['POST'])
 @limiter.limit("10 per minute")  # Limit to 10 requests per minute
@@ -92,13 +117,11 @@ def calculate():
         json.dumps(result)
         
         return jsonify(result)
-    
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('Error in /calculate: %s', str(e), exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
         }), 500
 
 if __name__ == '__main__':
@@ -106,4 +129,7 @@ if __name__ == '__main__':
     if not os.path.exists('static'):
         os.makedirs('static')
     port = int(os.environ.get("PORT", 5000))
+    # Set debug=False for production
     app.run(debug=False, host='0.0.0.0', port=port)
+    # For production, use a WSGI server like Gunicorn:
+    # gunicorn -w 4 -b 0.0.0.0:5000 app:app

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
       name="description"
       content="AI Math Calculator helps you solve mathematical equations using AI. Draw equations and get instant solutions."
@@ -12,12 +12,13 @@
       property="og:description"
       content="Solve mathematical equations using AI. Draw equations and get instant solutions."
     />
-    <meta property="og:image" content="static/screenshots/home_page.png" />
-    <meta property="og:url" content="https://aicalculator-9crg.onrender.com" />
+    <meta property="og:image" content="/static/screenshots/home_page.png" />
+    <meta property="og:url" content="https://aicalculator.devcrewx.tech" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="robots" content="index, follow" />
     <title>AI Math Calculator</title>
-    <link rel="icon" type="image/x-icon" href="static/favicon.ico" />
-    <link rel="stylesheet" href="static/css/styles.css" />
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+    <link rel="stylesheet" href="/static/css/styles.css" />
     <!-- Google Tag Manager -->
     <script>
       (function (w, d, s, l, i) {
@@ -80,6 +81,8 @@
             id="undoButton"
             disabled
             title="Undo your last action"
+            type="button"
+            aria-label="Undo last action"
           >
             Undo
           </button>
@@ -88,6 +91,8 @@
             id="redoButton"
             disabled
             title="Redo your last undone action"
+            type="button"
+            aria-label="Redo last undone action"
           >
             Redo
           </button>
@@ -96,6 +101,8 @@
           class="button clear-button"
           id="clearCanvas"
           title="Clear the canvas"
+          type="button"
+          aria-label="Clear canvas"
         >
           Clear
         </button>
@@ -103,6 +110,8 @@
           class="button"
           id="calculateButton"
           title="Calculate the equation"
+          type="button"
+          aria-label="Calculate equation"
         >
           Calculate
         </button>
@@ -113,7 +122,7 @@
     </div>
 
     <div class="result-container" id="resultContainer">
-      <button class="close-result" id="closeResult">×</button>
+      <button class="close-result" id="closeResult" type="button" aria-label="Close result">×</button>
       <div class="result-box" id="resultBox">
         <!-- Solution will be displayed here -->
       </div>
@@ -139,17 +148,19 @@
           <li>Use the toolbar for undo, redo, and clear actions.</li>
         </ul>
         <div class="onboarding-navigation">
-          <button class="button" id="prevButton" disabled>Previous</button>
-          <button class="button" id="nextButton">Next</button>
-          <button class="button" id="skipButton">Skip</button>
+          <button class="button" id="prevButton" type="button" disabled aria-label="Previous step">Previous</button>
+          <button class="button" id="nextButton" type="button" aria-label="Next step">Next</button>
+          <button class="button" id="skipButton" type="button" aria-label="Skip onboarding">Skip</button>
         </div>
       </div>
     </div>
 
-    <script src="static/js/script.js"></script>
+    <!-- Audio for confetti -->
+    <audio id="confetti-audio" src="/static/audio/confetti.mp3" style="display:none;"></audio>
 
+    <script src="/static/js/script.js" defer></script>
     <!-- Add MathJax for rendering mathematical expressions -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/confetti-js@0.0.18/dist/index.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/confetti-js@0.0.18/dist/index.min.js" defer></script>
   </body>
 </html>

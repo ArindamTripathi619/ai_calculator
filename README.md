@@ -6,8 +6,12 @@ A modern AI-powered calculator app built with Flask and integrated with Google's
 ## 🚀 Features
 - **AI-Powered Calculations**: Leverages Google's Gemini API for advanced generative capabilities.
 - **User-Friendly Design**: Intuitive UI with responsive design.
-- **Error Handling**: Robust mechanisms for handling invalid inputs gracefully.
-- **Static File Serving**: Includes a favicon and index page for a polished user experience.
+- **Error Handling**: Robust mechanisms for handling invalid inputs gracefully and user-friendly error pages (404, 500).
+- **Static File Serving**: Efficient static file serving using Flask's `send_from_directory`.
+- **Rate Limiting**: Protects endpoints with configurable rate limits using Flask-Limiter and Redis.
+- **CORS Security**: Restricts cross-origin requests via environment variable configuration.
+- **Logging**: Logs errors and important events for easier debugging and monitoring.
+- **Production Ready**: Designed to run with Gunicorn and Redis for scalable deployments.
 
 ---
 
@@ -27,10 +31,11 @@ A modern AI-powered calculator app built with Flask and integrated with Google's
 ---
 
 ## 🛠️ Technologies Used
-- **Backend**: Flask
+- **Backend**: Flask, Flask-Limiter (with Redis), Flask-CORS
 - **Frontend**: HTML, CSS (Material Design principles)
 - **API Integration**: Google's Gemini API
 - **Environment Management**: Python `venv` and `dotenv`
+- **Production**: Gunicorn, Redis, Nginx (recommended)
 
 ---
 
@@ -38,21 +43,25 @@ A modern AI-powered calculator app built with Flask and integrated with Google's
 ```plaintext
 AI_Calculator/
 ├── app.py          # Main Flask application
-├── static/         # Static files (favicon, index.html)
+├── static/         # Static files (favicon, index.html, error pages, assets)
 ├── .env            # Environment variables
-├── env/            # Python virtual environment
+├── venv/           # Python virtual environment
+├── requirements.txt# Python dependencies
+├── test_app.py     # Basic tests for endpoints
 └── README.md       # Project documentation
 ```
 
 ---
 
 ## ✨ How It Works
-1. **Input Handling**: Users can input numbers and operators via the web interface.
+1. **Input Handling**: Users draw equations on the web interface.
 2. **AI-Powered Calculations**: The app uses Google's Gemini API for advanced generative calculations.
+3. **Rate Limiting**: API endpoints are protected from abuse using Redis-backed rate limiting.
+4. **CORS Security**: Only allowed origins can access the API, as configured in the `.env` file.
 
 ---
 
-## ⚙️ Installation
+## ⚙️ Installation & Deployment
 1. Clone this repository:
    ```bash
    git clone https://github.com/arindam-tripathi/AI_Calculator.git
@@ -60,20 +69,29 @@ AI_Calculator/
    ```
 2. Create a virtual environment and install dependencies:
    ```bash
-   python -m venv env
-   source env/bin/activate  # On Windows, use `env\Scripts\activate`
+   python -m venv venv
+   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
    pip install -r requirements.txt
    ```
 3. Set up environment variables in the `.env` file (see below for details).
-4. Run the Flask application:
+4. **Install and start Redis** (for rate limiting):
+   - On Arch: `sudo pacman -S redis`
+   - Start: `sudo systemctl start redis`
+   - Enable on boot: `sudo systemctl enable redis`
+5. **Run the Flask application (development only):**
    ```bash
    python app.py
    ```
+6. **Run in production with Gunicorn:**
+   ```bash
+   gunicorn -w 4 -b 0.0.0.0:5000 app:app
+   ```
+   - For best results, use a process manager (systemd, supervisor) and a reverse proxy (Nginx) with HTTPS.
 
 ---
 
-## 📚 Setting Up the API Key
-To use Google's Gemini API, you need an API key.
+## 📚 Setting Up the API Key & Environment
+To use Google's Gemini API and configure CORS:
 
 ### 1. Get Your API Key
 1. Go to [Google Cloud Console](https://console.cloud.google.com/).
@@ -86,15 +104,21 @@ To use Google's Gemini API, you need an API key.
 Create a `.env` file in the project root and add the following:
 ```plaintext
 GEMINI_API_KEY=your_api_key_here
+CORS_ALLOWED_ORIGINS=https://aicalculator.devcrewx.tech,https://devcrewx.tech
+REDIS_URL=redis://localhost:6379
 ```
-Replace `your_api_key_here` with the actual API key you obtained.
+- `CORS_ALLOWED_ORIGINS` is a comma-separated list of allowed domains for API access.
+- `REDIS_URL` can be changed if you use a remote Redis instance.
 
 ---
 
 ## 📚 Resources
 - [Flask Documentation](https://flask.palletsprojects.com/)
+- [Flask-Limiter Docs](https://flask-limiter.readthedocs.io/)
 - [Material Design Guidelines](https://material.io/design)
 - [Google's Gemini API](https://cloud.google.com/gemini)
+- [Gunicorn Docs](https://docs.gunicorn.org/en/stable/)
+- [Redis Docs](https://redis.io/documentation)
 
 ---
 

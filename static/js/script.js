@@ -102,7 +102,7 @@ document.addEventListener("DOMContentLoaded", function () {
     confetti.render();
 
     // Play confetti music
-    const confettiAudio = new Audio("static/audio/confetti.mp3"); // Path to your audio file
+    const confettiAudio = new Audio("/static/audio/confetti.mp3"); // Path to your audio file
     confettiAudio.play();
 
     // Stop the confetti animation and remove the canvas after 5 seconds
