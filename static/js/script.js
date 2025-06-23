@@ -123,12 +123,14 @@ document.addEventListener("DOMContentLoaded", function () {
       onboardingModal.style.display = "none";
       localStorage.setItem("onboardingSeen", "true");
       showConfetti(); // Trigger confetti on completion
+      resizeCanvas(); // Ensure canvas is resized and interactive after onboarding
     }
   });
 
   skipButton.addEventListener("click", function () {
     onboardingModal.style.display = "none";
     localStorage.setItem("onboardingSeen", "true");
+    resizeCanvas(); // Ensure canvas is resized and interactive after onboarding
   });
 
   // Show onboarding only if not seen before
@@ -212,8 +214,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Update the enabled/disabled state of undo/redo buttons
   function updateButtons() {
-    undoButton.disabled = undoStack.length <= 1; // Keep at least the initial state
-    redoButton.disabled = redoStack.length === 0;
+    setToolbarButtonState({
+      undo: undoStack.length > 1,
+      redo: redoStack.length > 0
+    });
   }
 
   // Drawing functions
@@ -341,119 +345,96 @@ document.addEventListener("DOMContentLoaded", function () {
     saveState();
   }
 
-  // Event listeners
-  canvas.addEventListener("mousedown", startDrawing);
-  canvas.addEventListener("mousemove", draw);
-  canvas.addEventListener("mouseup", stopDrawing);
-  canvas.addEventListener("mouseout", stopDrawing);
+  // Utility to get all toolbar buttons (desktop and mobile)
+  function getToolbarButtons() {
+    return {
+      undo: [
+        document.getElementById('undoButton'),
+        document.getElementById('undoButtonDesktop')
+      ].filter(Boolean),
+      redo: [
+        document.getElementById('redoButton'),
+        document.getElementById('redoButtonDesktop')
+      ].filter(Boolean),
+      clear: [
+        document.getElementById('clearCanvas'),
+        document.getElementById('clearCanvasDesktop')
+      ].filter(Boolean),
+      calculate: [
+        document.getElementById('calculateButton'),
+        document.getElementById('calculateButtonDesktop')
+      ].filter(Boolean)
+    };
+  }
 
-  // Touch events
-  canvas.addEventListener("touchstart", handleStart, { passive: false });
-  canvas.addEventListener("touchmove", handleMove, { passive: false });
-  canvas.addEventListener("touchend", stopDrawing);
+  function setupToolbarEvents({ onUndo, onRedo, onClear, onCalculate }) {
+    const btns = getToolbarButtons();
+    btns.undo.forEach(btn => btn && btn.addEventListener('click', onUndo));
+    btns.redo.forEach(btn => btn && btn.addEventListener('click', onRedo));
+    btns.clear.forEach(btn => btn && btn.addEventListener('click', onClear));
+    btns.calculate.forEach(btn => btn && btn.addEventListener('click', onCalculate));
+  }
 
-  // Undo/Redo buttons
-  undoButton.addEventListener("click", undo);
-  redoButton.addEventListener("click", redo);
+  function setToolbarButtonState({ undo, redo }) {
+    const btns = getToolbarButtons();
+    btns.undo.forEach(btn => btn && (btn.disabled = !undo));
+    btns.redo.forEach(btn => btn && (btn.disabled = !redo));
+  }
 
-  // Clear canvas
-  clearButton.addEventListener("click", clearCanvas);
+  // Replace single button references with toolbar-utils
+  const btns = getToolbarButtons();
 
-  // Calculate button
-  // Replace the existing calculateButton event listener with this improved version
-  calculateButton.addEventListener("click", function () {
-    // Get canvas data
-    const imageData = canvas.toDataURL("image/png");
-
-    // Show loading indicator in result box
-    resultBox.innerHTML = "<p>Processing your equation...</p>";
-    resultContainer.style.display = "flex";
-
-    // Send to backend
-    fetch("/calculate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ image: imageData }),
-    })
-      .then((response) => {
-        // First check if the response is ok
-        if (!response.ok) {
-          throw new Error(`Server responded with status: ${response.status}`);
-        }
-
-        // Get the response text first
-        return response.text();
+  // Attach event listeners to all toolbar buttons
+  setupToolbarEvents({
+    onUndo: undo,
+    onRedo: redo,
+    onClear: clearCanvas,
+    onCalculate: function () {
+      // Get canvas data
+      const imageData = canvas.toDataURL("image/png");
+      resultBox.innerHTML = "<p>Processing your equation...</p>";
+      resultContainer.style.display = "flex";
+      fetch("/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageData }),
       })
-      .then((text) => {
-        // Try to parse as JSON
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error("JSON Parse Error:", e);
-          console.error("Raw response:", text);
-          throw new Error(
-            "Failed to parse server response as JSON. The response might be incomplete or malformed."
-          );
-        }
-
-        return data;
-      })
-      .then((data) => {
-        // Display result
-        if (data.success) {
-          resultBox.innerHTML =
-            data.solution || "Solution processed successfully but was empty.";
-
-          // Initialize MathJax rendering if needed
-          if (window.MathJax) {
-            try {
-              MathJax.typeset();
-            } catch (err) {
-              console.error("MathJax error:", err);
-            }
+        .then((response) => {
+          if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
+          return response.text();
+        })
+        .then((text) => {
+          let data;
+          try { data = JSON.parse(text); } catch (e) { throw new Error("Failed to parse server response as JSON."); }
+          return data;
+        })
+        .then((data) => {
+          if (data.success) {
+            resultBox.innerHTML = data.solution || "Solution processed successfully but was empty.";
+            if (window.MathJax) { try { MathJax.typeset(); } catch (err) { console.error("MathJax error:", err); } }
+          } else {
+            resultBox.innerHTML = `<p>Error: ${data.error || "Unknown error occurred"}</p>`;
           }
-        } else {
-          resultBox.innerHTML = `<p>Error: ${
-            data.error || "Unknown error occurred"
-          }</p>`;
-        }
-      })
-      .catch((error) => {
-        console.error("Fetch error:", error);
-        resultBox.innerHTML = `<p>Error: ${error.message}</p>
-                          <p>Please try again or try with a simpler equation.</p>`;
-      });
-  });
-
-  // Close result
-  closeResult.addEventListener("click", function () {
-    resultContainer.style.display = "none";
-  });
-
-  // Add keyboard shortcuts
-  document.addEventListener("keydown", function (e) {
-    // Ctrl+Z for Undo
-    if (e.ctrlKey && e.key === "z" && !undoButton.disabled) {
-      e.preventDefault();
-      undo();
-    }
-
-    // Ctrl+Y for Redo
-    if (e.ctrlKey && e.key === "y" && !redoButton.disabled) {
-      e.preventDefault();
-      redo();
-    }
-
-    // Ctrl+Shift+Z for Redo (alternative)
-    if (e.ctrlKey && e.shiftKey && e.key === "Z" && !redoButton.disabled) {
-      e.preventDefault();
-      redo();
+        })
+        .catch((error) => {
+          resultBox.innerHTML = `<p>Error: ${error.message}</p><p>Please try again or try with a simpler equation.</p>`;
+        });
     }
   });
 
   // Initialize the canvas
   resizeCanvas();
+
+  // Add drawing event listeners
+  // Mouse events
+  canvas.addEventListener("mousedown", startDrawing);
+  canvas.addEventListener("mousemove", draw);
+  canvas.addEventListener("mouseup", stopDrawing);
+  canvas.addEventListener("mouseleave", stopDrawing);
+
+  // Touch events
+  canvas.addEventListener("touchstart", handleStart, { passive: false });
+  canvas.addEventListener("touchmove", handleMove, { passive: false });
+  canvas.addEventListener("touchend", stopDrawing);
+  canvas.addEventListener("touchcancel", stopDrawing);
 });
