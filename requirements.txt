@@ -7,3 +7,6 @@ flask-limiter
 pytest
 gunicorn
 redis
+matplotlib
+numpy
+networkx

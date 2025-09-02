@@ -1,10 +1,15 @@
 # AI Calculator
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)  
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](6. **Run the Flask application (development only):**
+   ```bash
+   python app.py
+   ```
+7. **Run in production with Gunicorn:**://opensource.org/licenses/MIT)  
 A modern AI-powered calculator app built with Flask and integrated with Google's Gemini API for advanced generative capabilities. This app supports any kind of mathematical calculations and provides a sleek, user-friendly interface.
 
 ## 🚀 Features
 - **AI-Powered Calculations**: Leverages Google's Gemini API for advanced generative capabilities.
+- **Visual Diagrams**: Automatically generates mathematical diagrams using matplotlib when beneficial (graphs, plots, functions, geometry, etc.).
 - **User-Friendly Design**: Intuitive UI with responsive design.
 - **Error Handling**: Robust mechanisms for handling invalid inputs gracefully and user-friendly error pages (404, 500).
 - **Static File Serving**: Efficient static file serving using Flask's `send_from_directory`.
@@ -34,6 +39,7 @@ A modern AI-powered calculator app built with Flask and integrated with Google's
 - **Backend**: Flask, Flask-Limiter (with Redis), Flask-CORS
 - **Frontend**: HTML, CSS (Material Design principles)
 - **API Integration**: Google's Gemini API
+- **Diagram Generation**: matplotlib, NumPy
 - **Environment Management**: Python `venv` and `dotenv`
 - **Production**: Gunicorn, Redis, Nginx (recommended)
 
@@ -56,8 +62,9 @@ AI_Calculator/
 ## ✨ How It Works
 1. **Input Handling**: Users draw equations on the web interface.
 2. **AI-Powered Calculations**: The app uses Google's Gemini API for advanced generative calculations.
-3. **Rate Limiting**: API endpoints are protected from abuse using Redis-backed rate limiting.
-4. **CORS Security**: Only allowed origins can access the API, as configured in the `.env` file.
+3. **Visual Diagrams**: For problems that benefit from visual representation (functions, graphs, geometry), the AI generates matplotlib/Python code which is automatically executed to create PNG images.
+4. **Rate Limiting**: API endpoints are protected from abuse using Redis-backed rate limiting.
+5. **CORS Security**: Only allowed origins can access the API, as configured in the `.env` file.
 
 ---
 
@@ -78,7 +85,11 @@ AI_Calculator/
    - On Arch: `sudo pacman -S redis`
    - Start: `sudo systemctl start redis`
    - Enable on boot: `sudo systemctl enable redis`
-5. **Run the Flask application (development only):**
+5. **Install matplotlib and numpy** (for diagram generation):
+   ```bash
+   pip install matplotlib numpy
+   ```
+6. **Run the Flask application (development only):**
    ```bash
    python app.py
    ```

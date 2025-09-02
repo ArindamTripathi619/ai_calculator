@@ -1,4 +1,7 @@
 .env
 __pycache__/
 env/
+venv/
 *.pyc
+static/generated/
+*.log
