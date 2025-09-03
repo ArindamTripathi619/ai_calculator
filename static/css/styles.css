@@ -293,7 +293,7 @@ canvas {
 .progress-indicators {
   display: flex;
   justify-content: center;
-  margin-top: 10px;
+  margin: 15px 0;
 }
 
 .dot {
@@ -483,6 +483,8 @@ canvas {
   justify-content: center;
   height: 300px;
   padding: 20px;
+  background: #000;
+  min-height: calc(100vh - 120px);
 }
 
 .upload-area {
@@ -556,6 +558,8 @@ canvas {
   justify-content: center;
   height: 300px;
   padding: 20px;
+  background: #000;
+  min-height: calc(100vh - 120px);
 }
 
 .camera-area {
@@ -627,6 +631,8 @@ canvas {
   .upload-container, .camera-container {
     height: 250px;
     padding: 15px;
+    background: #000;
+    min-height: calc(100vh - 100px);
   }
   
   .upload-area {
