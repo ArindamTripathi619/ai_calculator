@@ -91,11 +91,12 @@
     </div>
     <!-- Input Options Section -->
     <div class="input-options" id="inputOptions">
-      <div class="input-tabs">
-        <button class="tab-button active" data-tab="draw" id="drawTab">Draw</button>
-        <button class="tab-button" data-tab="upload" id="uploadTab">Upload</button>
-        <button class="tab-button" data-tab="camera" id="cameraTab">Camera</button>
-      </div>
+                  <div class="input-tabs">
+                <button class="tab-button active" data-tab="draw">Draw</button>
+                <button class="tab-button" data-tab="upload">Upload</button>
+                <button class="tab-button" data-tab="camera">Camera</button>
+                <button class="tab-button" data-tab="text">Text</button>
+            </div>
     </div>
 
     <!-- Draw Tab Content -->
@@ -147,6 +148,34 @@
           <div class="image-actions">
             <button class="button" id="processCapturedImage">Calculate</button>
             <button class="button clear-button" id="clearCapturedImage">Retake</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Text Input Tab Content -->
+    <div class="tab-content" id="textContent">
+      <div class="text-container">
+        <div class="text-input-area">
+          <div class="text-icon">✏️</div>
+          <h3>Text Input</h3>
+          <p>Type your mathematical question directly</p>
+          <textarea 
+            id="textQuestion" 
+            placeholder="Enter your math question here...
+
+Examples:
+• Solve: x² + 5x + 6 = 0
+• Find the derivative of f(x) = 3x³ - 2x² + x - 5
+• What is the integral of sin(x)cos(x)?
+• Calculate the limit of (x² - 1)/(x - 1) as x approaches 1
+• Find the area of a circle with radius 5
+• Solve the system: 2x + 3y = 7, x - y = 1"
+            rows="12"
+          ></textarea>
+          <div class="text-actions">
+            <button class="button" id="processTextQuestion">Calculate</button>
+            <button class="button clear-button" id="clearTextQuestion">Clear</button>
           </div>
         </div>
       </div>

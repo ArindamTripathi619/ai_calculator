@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
   const canvas = document.getElementById("drawingCanvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas ? canvas.getContext("2d") : null;
   const colorTools = document.querySelectorAll(".color-tool");
   const clearButton = document.getElementById("clearCanvas");
   const calculateButton = document.getElementById("calculateButton");
@@ -18,12 +18,14 @@ document.addEventListener("DOMContentLoaded", function () {
   const skipButton = document.getElementById("skipButton");
 
   // Input options elements
-  const drawTab = document.getElementById("drawTab");
-  const uploadTab = document.getElementById("uploadTab");
-  const cameraTab = document.getElementById("cameraTab");
+  const drawTab = document.querySelector('[data-tab="draw"]');
+  const uploadTab = document.querySelector('[data-tab="upload"]');
+  const cameraTab = document.querySelector('[data-tab="camera"]');
+  const textTab = document.querySelector('[data-tab="text"]');
   const drawContent = document.getElementById("drawContent");
   const uploadContent = document.getElementById("uploadContent");
   const cameraContent = document.getElementById("cameraContent");
+  const textContent = document.getElementById("textContent");
   
   // Upload elements
   const uploadArea = document.getElementById("uploadArea");
@@ -46,6 +48,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const capturedImage = document.getElementById("capturedImage");
   const processCapturedImage = document.getElementById("processCapturedImage");
   const clearCapturedImage = document.getElementById("clearCapturedImage");
+
+  // Text input elements
+  const textQuestion = document.getElementById("textQuestion");
+  const processTextQuestion = document.getElementById("processTextQuestion");
+  const clearTextQuestion = document.getElementById("clearTextQuestion");
 
   let currentStep = 0;
   let cameraStream = null;
@@ -100,6 +107,43 @@ document.addEventListener("DOMContentLoaded", function () {
       })
       .catch((error) => {
         resultBox.innerHTML = `<p>Error: ${error.message}</p><p>Please try again or try with a simpler equation.</p>`;
+      });
+  }
+
+  // Text processing function
+  function handleTextQuestion(questionText) {
+    if (!questionText.trim()) {
+      alert('Please enter a mathematical question.');
+      return;
+    }
+
+    resultBox.innerHTML = "<p>Processing your question...</p>";
+    resultContainer.style.display = "flex";
+    
+    fetch("/calculate-text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: questionText }),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
+        return response.text();
+      })
+      .then((text) => {
+        let data;
+        try { data = JSON.parse(text); } catch (e) { throw new Error("Failed to parse server response as JSON."); }
+        return data;
+      })
+      .then((data) => {
+        if (data.success) {
+          resultBox.innerHTML = data.solution || "Solution processed successfully but was empty.";
+          if (window.MathJax) { try { MathJax.typeset(); } catch (err) { console.error("MathJax error:", err); } }
+        } else {
+          resultBox.innerHTML = `<p>Error: ${data.error || "Unknown error occurred"}</p>`;
+        }
+      })
+      .catch((error) => {
+        resultBox.innerHTML = `<p>Error: ${error.message}</p><p>Please try again or try with a simpler question.</p>`;
       });
   }
 
@@ -198,7 +242,7 @@ document.addEventListener("DOMContentLoaded", function () {
     },
     {
       title: "Step 1: Choose Input Method",
-      description: "Select from Draw, Upload, or Camera tabs to input your equation.",
+      description: "Select from Draw, Upload, Camera, or Text tabs to input your equation.",
       highlight: ".input-options",
     },
     {
@@ -207,8 +251,8 @@ document.addEventListener("DOMContentLoaded", function () {
       highlight: "#drawingCanvas",
     },
     {
-      title: "Step 3: Upload or Capture",
-      description: "Upload an existing image or use your camera to capture an equation.",
+      title: "Step 3: Multiple Input Options",
+      description: "Upload an image, use your camera to capture an equation, or type your question directly in the text tab.",
       highlight: ".tab-button",
     },
     {
@@ -311,7 +355,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Set canvas size
   function resizeCanvas() {
+    if (!canvas || !ctx) return;
+    
     const canvasContainer = document.querySelector(".canvas-container");
+    if (!canvasContainer) return;
+    
     canvas.width = canvasContainer.offsetWidth;
     canvas.height = canvasContainer.offsetHeight;
 
@@ -555,6 +603,10 @@ document.addEventListener("DOMContentLoaded", function () {
     onRedo: redo,
     onClear: clearCanvas,
     onCalculate: function () {
+      if (!canvas) {
+        alert('Canvas not available. Please try refreshing the page.');
+        return;
+      }
       // Get canvas data
       const imageData = canvas.toDataURL("image/png");
       resultBox.innerHTML = "<p>Processing your equation...</p>";
@@ -588,16 +640,19 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Initialize the canvas
-  resizeCanvas();
+  if (canvas && ctx) {
+    resizeCanvas();
+  }
 
   // Tab event listeners
-  drawTab.addEventListener('click', () => switchTab('draw'));
-  uploadTab.addEventListener('click', () => switchTab('upload'));
-  cameraTab.addEventListener('click', () => switchTab('camera'));
+  if (drawTab) drawTab.addEventListener('click', () => switchTab('draw'));
+  if (uploadTab) uploadTab.addEventListener('click', () => switchTab('upload'));
+  if (cameraTab) cameraTab.addEventListener('click', () => switchTab('camera'));
+  if (textTab) textTab.addEventListener('click', () => switchTab('text'));
 
   // Upload event listeners
-  uploadButton.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => {
+  if (uploadButton) uploadButton.addEventListener('click', () => fileInput.click());
+  if (fileInput) fileInput.addEventListener('change', (e) => {
     if (e.target.files[0]) {
       handleFileUpload(e.target.files[0]);
     }
@@ -648,21 +703,33 @@ document.addEventListener("DOMContentLoaded", function () {
     startCameraStream();
   });
 
-  // Add drawing event listeners
-  // Mouse events
-  canvas.addEventListener("mousedown", startDrawing);
-  canvas.addEventListener("mousemove", draw);
-  canvas.addEventListener("mouseup", stopDrawing);
-  canvas.addEventListener("mouseleave", stopDrawing);
+  // Text input event listeners
+  processTextQuestion.addEventListener('click', () => {
+    handleTextQuestion(textQuestion.value);
+  });
 
-  // Touch events
-  canvas.addEventListener("touchstart", handleStart, { passive: false });
-  canvas.addEventListener("touchmove", handleMove, { passive: false });
-  canvas.addEventListener("touchend", stopDrawing);
-  canvas.addEventListener("touchcancel", stopDrawing);
+  clearTextQuestion.addEventListener('click', () => {
+    textQuestion.value = '';
+    textQuestion.focus();
+  });
+
+  // Add drawing event listeners
+  if (canvas && ctx) {
+    // Mouse events
+    canvas.addEventListener("mousedown", startDrawing);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", stopDrawing);
+    canvas.addEventListener("mouseleave", stopDrawing);
+
+    // Touch events
+    canvas.addEventListener("touchstart", handleStart, { passive: false });
+    canvas.addEventListener("touchmove", handleMove, { passive: false });
+    canvas.addEventListener("touchend", stopDrawing);
+    canvas.addEventListener("touchcancel", stopDrawing);
+  }
 
   // Add event listener to close the result overlay
-  closeResult.addEventListener("click", function () {
+  if (closeResult) closeResult.addEventListener("click", function () {
     resultContainer.style.display = "none";
   });
 

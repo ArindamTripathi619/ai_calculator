@@ -616,6 +616,78 @@ canvas {
   padding: 12px 24px;
 }
 
+/* Text Input Styles */
+.text-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: #000;
+  min-height: calc(100vh - 120px);
+}
+
+.text-input-area {
+  text-align: center;
+  width: 100%;
+  max-width: 600px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 40px;
+  border: 2px solid #ffcc00;
+}
+
+.text-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+}
+
+.text-input-area h3 {
+  color: white;
+  margin: 0 0 10px 0;
+  font-size: 18px;
+}
+
+.text-input-area p {
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0 0 20px 0;
+  font-size: 14px;
+}
+
+#textQuestion {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  padding: 15px;
+  color: white;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 200px;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+}
+
+#textQuestion::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.6;
+}
+
+#textQuestion:focus {
+  outline: none;
+  border-color: #ffcc00;
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
+}
+
+.text-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* Mobile Responsive for Input Options */
 @media (max-width: 768px) {
   .input-tabs {
@@ -628,24 +700,29 @@ canvas {
     font-size: 12px;
   }
   
-  .upload-container, .camera-container {
+  .upload-container, .camera-container, .text-container {
     height: 250px;
     padding: 15px;
     background: #000;
     min-height: calc(100vh - 100px);
   }
   
-  .upload-area {
+  .upload-area, .text-input-area {
     padding: 25px;
     max-width: 100%;
   }
   
-  .upload-icon, .camera-icon {
+  .upload-icon, .camera-icon, .text-icon {
     font-size: 36px;
   }
   
-  .upload-area h3, .camera-controls h3 {
+  .upload-area h3, .camera-controls h3, .text-input-area h3 {
     font-size: 16px;
+  }
+
+  #textQuestion {
+    min-height: 150px;
+    font-size: 13px;
   }
   
   .upload-area p, .camera-controls p {

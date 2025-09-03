@@ -319,6 +319,114 @@ def calculate():
             'error': 'An internal error occurred. Please try again later.'
         }), 500
 
+@app.route('/calculate-text', methods=['POST'])
+@limiter.limit("10 per minute")  # Limit to 10 requests per minute
+def calculate_text():
+    try:
+        # Get text question from request
+        data = request.json
+        question_text = data.get('question')
+        
+        if not question_text or not question_text.strip():
+            return jsonify({
+                'success': False,
+                'error': 'No question provided.'
+            }), 400
+        
+        # Prompt for Gemini API - optimized for text-based math questions
+        prompt = (
+            "You will be provided with a mathematical question in text format. "
+            "Provide a complete solution with step-by-step explanations. "
+            "Format your response as HTML with MathJax-compatible LaTeX for all mathematical expressions. "
+            "Use \\( \\) for inline math and \\[ \\] for display math. "
+            "If the problem would benefit from a visual diagram (graphs, plots, functions, geometry, etc.), "
+            "include Python matplotlib code wrapped in <!--PLOT-START--> and <!--PLOT-END--> tags. "
+            "The code should use matplotlib (plt) and numpy (np) to create clear, labeled diagrams. "
+            "Examples: function plots, geometric shapes, coordinate systems, statistical charts, etc. "
+            "Make sure to include proper labels, titles, and formatting for clarity. "
+            "IMPORTANT: Do not include any markdown code block markers (like ```python or ```) in your response. "
+            "IMPORTANT: Only use plt, np, numpy, matplotlib and standard math functions in the code. "
+            "Do not reference 'python' as a variable or function name. "
+            "Keep your response clear, concise and mathematically accurate. "
+            f"Question: {question_text}"
+        )
+        
+        # Generate response
+        response = model.generate_content(prompt)
+        
+        # Clean the response to remove any markdown code block markers
+        cleaned_response = response.text
+        # Remove ```html at the beginning and ``` at the end if present
+        cleaned_response = re.sub(r'^```(?:html|markdown)?\s*', '', cleaned_response)
+        cleaned_response = re.sub(r'\s*```$', '', cleaned_response)
+        # Remove any other markdown code blocks that might be present
+        cleaned_response = re.sub(r'```\w*\s*|\s*```', '', cleaned_response)
+        
+        # Extract and process matplotlib code if present
+        plot_image_url = None
+        plot_pattern = r'<!--PLOT-START-->(.*?)<!--PLOT-END-->'
+        plot_match = re.search(plot_pattern, cleaned_response, re.DOTALL)
+        
+        if plot_match:
+            plot_code = plot_match.group(1).strip()
+            # Clean the code - remove "python" if it appears at the start
+            if plot_code.startswith('python'):
+                plot_code = '\n'.join(plot_code.split('\n')[1:])
+            # Generate unique filename for the image
+            image_filename = f"plot_{uuid.uuid4().hex[:8]}.png"
+            
+            # Generate matplotlib diagram
+            compiled_image = generate_matplotlib_diagram(plot_code, image_filename)
+            
+            if compiled_image:
+                plot_image_url = f"/static/generated/{compiled_image}"
+                # Remove plot code from response and add image reference
+                cleaned_response = re.sub(plot_pattern, 
+                    f'<div class="math-diagram-container"><img src="{plot_image_url}" alt="Mathematical Diagram" class="math-diagram"></div>', 
+                    cleaned_response, flags=re.DOTALL)
+                logger.info(f"Successfully generated matplotlib diagram for text question: {plot_image_url}")
+                
+                # Schedule file deletion after 10 minutes (enough time for user to view)
+                def delayed_delete():
+                    time.sleep(600)  # 10 minutes
+                    try:
+                        file_path = os.path.join('static', 'generated', compiled_image)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            logger.info(f"Deleted served image from text question: {compiled_image}")
+                    except OSError as e:
+                        logger.error(f"Failed to delete served image {compiled_image}: {e}")
+                
+                # Start deletion in background
+                delete_thread = threading.Thread(target=delayed_delete, daemon=True)
+                delete_thread.start()
+            else:
+                # Remove plot code if generation failed
+                cleaned_response = re.sub(plot_pattern, 
+                    '<p><em>Diagram generation failed. Please refer to the text solution.</em></p>', 
+                    cleaned_response, flags=re.DOTALL)
+                logger.warning("Matplotlib diagram generation failed for text question, removed from response")
+        
+        # Ensure the response is properly escaped for JSON
+        result = {
+            'success': True,
+            'solution': cleaned_response,
+            'has_diagram': plot_image_url is not None,
+            'diagram_url': plot_image_url
+        }
+        
+        # Validate JSON before returning
+        # This ensures we're sending valid JSON
+        json.dumps(result)
+        
+        return jsonify(result)
+    except Exception as e:
+        logger.error('Error in /calculate-text: %s', str(e), exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'An internal error occurred. Please try again later.'
+        }), 500
+
 if __name__ == '__main__':
     # Make sure static folder exists
     if not os.path.exists('static'):
