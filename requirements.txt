@@ -2,6 +2,8 @@ flask
 pillow
 python-dotenv
 google-generativeai
+google-cloud-aiplatform
+vertexai
 flask-cors
 flask-limiter
 pytest

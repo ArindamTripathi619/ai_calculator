@@ -22,16 +22,25 @@ A modern AI-powered calculator app built with Flask and integrated with Google's
 
 ## 🖼️ Screenshots
 ### Onboarding
-![Onboarding](screenshots/onboarding.png)
+![Onboarding](screenshots/onboarding.webp)
 
 ### Home Page
-![Home Page](screenshots/home_page.png)
+![Home Page](screenshots/home_page.webp)
+
+### Upload Image
+![Home Page](screenshots/upload.webp)
+
+### Camera Input
+![Home Page](screenshots/camera.webp)
+
+### Text Input
+![Home Page](screenshots/text.webp)
 
 ### Question
-![Question](screenshots/question.png)
+![Question](screenshots/question.webp)
 
 ### Calculation Example
-![Calculation Example](screenshots/solution.png)
+![Calculation Example](screenshots/solution.webp)
 
 ---
 

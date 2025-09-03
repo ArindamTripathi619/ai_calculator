@@ -3,5 +3,31 @@ __pycache__/
 env/
 venv/
 *.pyc
+
+# Google Cloud credentials (NEVER commit these!)
+*.json
+aicalculator-*.json
 static/generated/
 *.log
+
+# Test files
+test_*.py
+debug_*.py
+*_test.py
+*_test.html
+math_solution_*.html
+test_response_*.html
+
+# Generated test images
+test_*.png
+plot_*.png
+
+# Python cache
+.pytest_cache/
+.coverage
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

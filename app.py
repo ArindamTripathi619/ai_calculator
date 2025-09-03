@@ -1,9 +1,19 @@
+#!/usr/bin/env python3
+"""
+Optimized AI Calculator with Enhanced Gemini API
+- Better error handling and retry logic
+- Response caching to reduce API calls
+- Performance optimizations
+- Ready for Vertex AI when available
+"""
 from flask import Flask, request, jsonify, send_from_directory
 import google.generativeai as genai
 import os
 import base64
 import re
 import json
+import hashlib
+import time
 from io import BytesIO
 from PIL import Image
 from dotenv import load_dotenv
@@ -20,30 +30,135 @@ import networkx as nx
 import uuid
 import io
 import glob
-import time
 import threading
 from datetime import datetime, timedelta
 
-
 # Load environment variables
 load_dotenv()
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
-# Configure Gemini API
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(model_name='gemini-1.5-flash')
+# AI Configuration with fallback
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT_ID')  # For future Vertex AI
+LOCATION = os.getenv('GOOGLE_CLOUD_LOCATION', 'us-central1')
+
+# Configure AI API
+api_backend = "gemini"  # Will change to "vertex" when available
+model = None
+
+def initialize_ai_model():
+    """Initialize AI model with fallback"""
+    global model, api_backend
+    
+    try:
+        # Try Vertex AI first (for future use)
+        if PROJECT_ID and os.path.exists(os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '')):
+            try:
+                import vertexai
+                from vertexai.generative_models import GenerativeModel
+                
+                vertexai.init(project=PROJECT_ID, location=LOCATION)
+                model = GenerativeModel('gemini-1.5-flash')
+                
+                # Test if it works
+                test_response = model.generate_content("Test")
+                api_backend = "vertex"
+                logger.info("✅ Using Vertex AI")
+                return
+                
+            except Exception as e:
+                logger.info(f"Vertex AI not available: {e}")
+        
+        # Fallback to regular Gemini API
+        if GEMINI_API_KEY:
+            genai.configure(api_key=GEMINI_API_KEY)
+            model = genai.GenerativeModel(model_name='gemini-1.5-flash')
+            api_backend = "gemini"
+            logger.info("✅ Using Gemini API")
+        else:
+            raise Exception("No AI API configured")
+            
+    except Exception as e:
+        logger.error(f"Failed to initialize AI model: {e}")
+        raise
+
+# Simple in-memory cache for responses
+response_cache = {}
+CACHE_TTL = 3600  # 1 hour
+
+def get_cache_key(image_data=None, text_data=None):
+    """Generate cache key from input data"""
+    if image_data:
+        return hashlib.md5(image_data.encode()).hexdigest()
+    elif text_data:
+        return hashlib.md5(text_data.encode()).hexdigest()
+    return None
+
+def get_cached_response(cache_key):
+    """Get cached response if still valid"""
+    if cache_key in response_cache:
+        cached_data, timestamp = response_cache[cache_key]
+        if time.time() - timestamp < CACHE_TTL:
+            logger.info(f"Cache hit for key: {cache_key[:8]}...")
+            return cached_data
+        else:
+            # Remove expired cache
+            del response_cache[cache_key]
+    return None
+
+def cache_response(cache_key, response_data):
+    """Cache response data"""
+    response_cache[cache_key] = (response_data, time.time())
+    logger.info(f"Cached response for key: {cache_key[:8]}...")
+    
+    # Simple cache cleanup - remove old entries
+    current_time = time.time()
+    expired_keys = [k for k, (_, ts) in response_cache.items() if current_time - ts > CACHE_TTL]
+    for k in expired_keys:
+        del response_cache[k]
+
+def generate_ai_response(prompt, image=None, max_retries=3):
+    """Generate AI response with retry logic"""
+    for attempt in range(max_retries):
+        try:
+            if api_backend == "vertex" and image:
+                # Vertex AI approach (for future use)
+                from vertexai.generative_models import Part
+                img_byte_arr = BytesIO()
+                image.save(img_byte_arr, format='PNG')
+                img_byte_arr = img_byte_arr.getvalue()
+                image_part = Part.from_data(img_byte_arr, mime_type="image/png")
+                response = model.generate_content([prompt, image_part])
+            elif image:
+                # Regular Gemini API with image
+                response = model.generate_content([prompt, image])
+            else:
+                # Text only
+                response = model.generate_content([prompt])
+            
+            return response.text
+            
+        except Exception as e:
+            logger.warning(f"AI request attempt {attempt + 1} failed: {e}")
+            
+            if attempt < max_retries - 1:
+                # Wait before retry (exponential backoff)
+                wait_time = (2 ** attempt) * 1
+                logger.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                raise e
 
 app = Flask(__name__)
 
-# Set up CORS
+# Enhanced CORS setup
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if os.getenv('CORS_ALLOWED_ORIGINS') else []
 
 if CORS_ALLOWED_ORIGINS:
     CORS(app, origins=CORS_ALLOWED_ORIGINS)
 else:
-    CORS(app)  # Fallback: allow all (not recommended for production)
+    CORS(app)
 
-# Serve static files using send_from_directory
+# Serve static files
 @app.route('/')
 def serve_index():
     return send_from_directory('static', 'index.html')
@@ -52,28 +167,41 @@ def serve_index():
 def serve_static(filename):
     return send_from_directory('static', filename)
 
-# Initialize Flask-Limiter with Redis for production
+# Enhanced rate limiting based on API backend
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
+
+# Dynamic rate limits
+rate_limits = {
+    "vertex": ["500 per day", "100 per hour", "30 per minute"],
+    "gemini": ["200 per day", "50 per hour", "15 per minute"]  # Slightly increased
+}
+
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
     storage_uri=REDIS_URL,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=rate_limits.get(api_backend, rate_limits["gemini"])
 )
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-# Cleanup configuration
-CLEANUP_INTERVAL = 3600  # Run cleanup every hour (3600 seconds)
-MAX_FILE_AGE = 7200      # Delete files older than 2 hours (7200 seconds)
-MAX_FILES_COUNT = 500    # Maximum number of files to keep
+# Initialize AI model
+try:
+    initialize_ai_model()
+    logger.info(f"AI Backend: {api_backend}")
+except Exception as e:
+    logger.error(f"Failed to initialize AI: {e}")
+    exit(1)
+
+# ...existing cleanup code... (keeping the same)
+CLEANUP_INTERVAL = 3600
+MAX_FILE_AGE = 7200
+MAX_FILES_COUNT = 500
 
 def cleanup_generated_files():
-    """
-    Clean up old generated image files to prevent storage overflow
-    """
+    """Clean up old generated image files to prevent storage overflow"""
     try:
         generated_dir = os.path.join('static', 'generated')
         if not os.path.exists(generated_dir):
@@ -83,12 +211,9 @@ def cleanup_generated_files():
         files_pattern = os.path.join(generated_dir, 'plot_*.png')
         files = glob.glob(files_pattern)
         
-        # Sort files by modification time (oldest first)
         files.sort(key=lambda x: os.path.getmtime(x))
-        
         deleted_count = 0
         
-        # Delete files older than MAX_FILE_AGE
         for file_path in files:
             file_age = current_time - os.path.getmtime(file_path)
             if file_age > MAX_FILE_AGE:
@@ -99,10 +224,9 @@ def cleanup_generated_files():
                 except OSError as e:
                     logger.error(f"Failed to delete file {file_path}: {e}")
         
-        # If we still have too many files, delete the oldest ones
         remaining_files = [f for f in files if os.path.exists(f)]
         if len(remaining_files) > MAX_FILES_COUNT:
-            files_to_delete = remaining_files[:-MAX_FILES_COUNT]  # Keep only the newest MAX_FILES_COUNT files
+            files_to_delete = remaining_files[:-MAX_FILES_COUNT]
             for file_path in files_to_delete:
                 try:
                     os.remove(file_path)
@@ -114,7 +238,6 @@ def cleanup_generated_files():
         if deleted_count > 0:
             logger.info(f"Cleanup completed: {deleted_count} files deleted")
         
-        # Log current file count
         current_files = len(glob.glob(files_pattern))
         logger.info(f"Generated files count after cleanup: {current_files}")
         
@@ -122,34 +245,26 @@ def cleanup_generated_files():
         logger.error(f"Error during cleanup: {e}")
 
 def cleanup_worker():
-    """
-    Background worker that runs cleanup periodically
-    """
+    """Background worker that runs cleanup periodically"""
     while True:
         try:
             cleanup_generated_files()
             time.sleep(CLEANUP_INTERVAL)
         except Exception as e:
             logger.error(f"Error in cleanup worker: {e}")
-            time.sleep(60)  # Wait 1 minute before retrying
+            time.sleep(60)
 
-# Start cleanup worker thread
 cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
 cleanup_thread.start()
 logger.info(f"Started cleanup worker thread (interval: {CLEANUP_INTERVAL/3600:.1f}h, max age: {MAX_FILE_AGE/3600:.1f}h)")
 
-# Matplotlib diagram generation function
+# ...existing matplotlib code... (keeping the same)
 def generate_matplotlib_diagram(python_code, output_filename):
-    """
-    Execute matplotlib/numpy code to generate a diagram
-    Returns the path to the generated image or None if failed
-    """
+    """Execute matplotlib/numpy code to generate a diagram"""
     try:
-        # Create a new figure
         plt.figure(figsize=(8, 6), dpi=100)
         plt.style.use('default')
         
-        # Define a safe execution environment
         safe_globals = {
             'plt': plt,
             'np': np,
@@ -173,13 +288,11 @@ def generate_matplotlib_diagram(python_code, output_filename):
             'abs': abs,
             'max': max,
             'min': min,
-            'python': None,  # Prevent undefined 'python' references
+            'python': None,
         }
         
-        # Execute the plotting code
         exec(python_code, safe_globals)
         
-        # Save the plot
         output_path = os.path.join('static', 'generated', output_filename)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
@@ -192,7 +305,7 @@ def generate_matplotlib_diagram(python_code, output_filename):
         
     except Exception as e:
         logger.error(f"Error generating matplotlib diagram: {str(e)}")
-        plt.close()  # Ensure plot is closed even on error
+        plt.close()
         return None
 
 @app.errorhandler(404)
@@ -203,24 +316,28 @@ def not_found_error(error):
 def internal_error(error):
     return send_from_directory('static', '500.html'), 500
 
+# Enhanced calculate route with caching
 @app.route('/calculate', methods=['POST'])
-@limiter.limit("10 per minute")  # Limit to 10 requests per minute
+@limiter.limit("15 per minute")  # Slightly increased limit
 def calculate():
     try:
-        # Get image data from request
         data = request.json
         image_data = data.get('image')
+        
+        # Check cache first
+        cache_key = get_cache_key(image_data=image_data)
+        cached_result = get_cached_response(cache_key)
+        
+        if cached_result:
+            logger.info("Returning cached result for image")
+            return jsonify(cached_result)
         
         # Convert base64 image to PIL Image
         image_data = image_data.replace('data:image/png;base64,', '')
         image_bytes = base64.b64decode(image_data)
         img = Image.open(BytesIO(image_bytes))
         
-        # Save temporarily (optional)
-        # temp_image_path = "temp_image.png"
-        # img.save(temp_image_path)
-        
-        # Prompt for Gemini API
+        # Enhanced prompt
         prompt = (
             "You will be provided an image file containing a mathematical expression. "
             "The image has a black background with the math expression drawn in white or other colors. "
@@ -239,48 +356,37 @@ def calculate():
             "Keep your response concise and focused on the solution."
         )
         
-        # Generate response
-        response = model.generate_content([prompt, img])
+        # Generate response with retry logic
+        response_text = generate_ai_response(prompt, img)
         
-        # Clean up
-        # if os.path.exists(temp_image_path):
-        #     os.remove(temp_image_path)
-        
-        # Clean the response to remove any markdown code block markers
-        cleaned_response = response.text
-        # Remove ```html at the beginning and ``` at the end if present
+        # Process response (same as before)
+        cleaned_response = response_text
         cleaned_response = re.sub(r'^```(?:html|markdown)?\s*', '', cleaned_response)
         cleaned_response = re.sub(r'\s*```$', '', cleaned_response)
-        # Remove any other markdown code blocks that might be present
         cleaned_response = re.sub(r'```\w*\s*|\s*```', '', cleaned_response)
         
-        # Extract and process matplotlib code if present
+        # Extract and process matplotlib code
         plot_image_url = None
         plot_pattern = r'<!--PLOT-START-->(.*?)<!--PLOT-END-->'
         plot_match = re.search(plot_pattern, cleaned_response, re.DOTALL)
         
         if plot_match:
             plot_code = plot_match.group(1).strip()
-            # Clean the code - remove "python" if it appears at the start
             if plot_code.startswith('python'):
                 plot_code = '\n'.join(plot_code.split('\n')[1:])
-            # Generate unique filename for the image
-            image_filename = f"plot_{uuid.uuid4().hex[:8]}.png"
             
-            # Generate matplotlib diagram
+            image_filename = f"plot_{uuid.uuid4().hex[:8]}.png"
             compiled_image = generate_matplotlib_diagram(plot_code, image_filename)
             
             if compiled_image:
                 plot_image_url = f"/static/generated/{compiled_image}"
-                # Remove plot code from response and add image reference
                 cleaned_response = re.sub(plot_pattern, 
                     f'<div class="math-diagram-container"><img src="{plot_image_url}" alt="Mathematical Diagram" class="math-diagram"></div>', 
                     cleaned_response, flags=re.DOTALL)
                 logger.info(f"Successfully generated matplotlib diagram: {plot_image_url}")
                 
-                # Schedule file deletion after 10 minutes (enough time for user to view)
                 def delayed_delete():
-                    time.sleep(600)  # 10 minutes
+                    time.sleep(600)
                     try:
                         file_path = os.path.join('static', 'generated', compiled_image)
                         if os.path.exists(file_path):
@@ -289,29 +395,29 @@ def calculate():
                     except OSError as e:
                         logger.error(f"Failed to delete served image {compiled_image}: {e}")
                 
-                # Start deletion in background
                 delete_thread = threading.Thread(target=delayed_delete, daemon=True)
                 delete_thread.start()
             else:
-                # Remove plot code if generation failed
                 cleaned_response = re.sub(plot_pattern, 
                     '<p><em>Diagram generation failed. Please refer to the text solution.</em></p>', 
                     cleaned_response, flags=re.DOTALL)
                 logger.warning("Matplotlib diagram generation failed, removed from response")
         
-        # Ensure the response is properly escaped for JSON
         result = {
             'success': True,
             'solution': cleaned_response,
             'has_diagram': plot_image_url is not None,
-            'diagram_url': plot_image_url
+            'diagram_url': plot_image_url,
+            'api_backend': api_backend,  # For debugging
+            'cached': False
         }
         
-        # Validate JSON before returning
-        # This ensures we're sending valid JSON
-        json.dumps(result)
+        # Cache the result
+        cache_response(cache_key, result)
         
+        json.dumps(result)
         return jsonify(result)
+        
     except Exception as e:
         logger.error('Error in /calculate: %s', str(e), exc_info=True)
         return jsonify({
@@ -319,11 +425,11 @@ def calculate():
             'error': 'An internal error occurred. Please try again later.'
         }), 500
 
+# Enhanced calculate-text route with caching
 @app.route('/calculate-text', methods=['POST'])
-@limiter.limit("10 per minute")  # Limit to 10 requests per minute
+@limiter.limit("15 per minute")
 def calculate_text():
     try:
-        # Get text question from request
         data = request.json
         question_text = data.get('question')
         
@@ -333,7 +439,15 @@ def calculate_text():
                 'error': 'No question provided.'
             }), 400
         
-        # Prompt for Gemini API - optimized for text-based math questions
+        # Check cache first
+        cache_key = get_cache_key(text_data=question_text)
+        cached_result = get_cached_response(cache_key)
+        
+        if cached_result:
+            logger.info("Returning cached result for text")
+            return jsonify(cached_result)
+        
+        # Enhanced prompt for text questions
         prompt = (
             "You will be provided with a mathematical question in text format. "
             "Provide a complete solution with step-by-step explanations. "
@@ -351,44 +465,36 @@ def calculate_text():
             f"Question: {question_text}"
         )
         
-        # Generate response
-        response = model.generate_content(prompt)
+        # Generate response with retry logic
+        response_text = generate_ai_response(prompt)
         
-        # Clean the response to remove any markdown code block markers
-        cleaned_response = response.text
-        # Remove ```html at the beginning and ``` at the end if present
+        # Process response (same logic as calculate route)
+        cleaned_response = response_text
         cleaned_response = re.sub(r'^```(?:html|markdown)?\s*', '', cleaned_response)
         cleaned_response = re.sub(r'\s*```$', '', cleaned_response)
-        # Remove any other markdown code blocks that might be present
         cleaned_response = re.sub(r'```\w*\s*|\s*```', '', cleaned_response)
         
-        # Extract and process matplotlib code if present
         plot_image_url = None
         plot_pattern = r'<!--PLOT-START-->(.*?)<!--PLOT-END-->'
         plot_match = re.search(plot_pattern, cleaned_response, re.DOTALL)
         
         if plot_match:
             plot_code = plot_match.group(1).strip()
-            # Clean the code - remove "python" if it appears at the start
             if plot_code.startswith('python'):
                 plot_code = '\n'.join(plot_code.split('\n')[1:])
-            # Generate unique filename for the image
-            image_filename = f"plot_{uuid.uuid4().hex[:8]}.png"
             
-            # Generate matplotlib diagram
+            image_filename = f"plot_{uuid.uuid4().hex[:8]}.png"
             compiled_image = generate_matplotlib_diagram(plot_code, image_filename)
             
             if compiled_image:
                 plot_image_url = f"/static/generated/{compiled_image}"
-                # Remove plot code from response and add image reference
                 cleaned_response = re.sub(plot_pattern, 
                     f'<div class="math-diagram-container"><img src="{plot_image_url}" alt="Mathematical Diagram" class="math-diagram"></div>', 
                     cleaned_response, flags=re.DOTALL)
                 logger.info(f"Successfully generated matplotlib diagram for text question: {plot_image_url}")
                 
-                # Schedule file deletion after 10 minutes (enough time for user to view)
                 def delayed_delete():
-                    time.sleep(600)  # 10 minutes
+                    time.sleep(600)
                     try:
                         file_path = os.path.join('static', 'generated', compiled_image)
                         if os.path.exists(file_path):
@@ -397,29 +503,29 @@ def calculate_text():
                     except OSError as e:
                         logger.error(f"Failed to delete served image {compiled_image}: {e}")
                 
-                # Start deletion in background
                 delete_thread = threading.Thread(target=delayed_delete, daemon=True)
                 delete_thread.start()
             else:
-                # Remove plot code if generation failed
                 cleaned_response = re.sub(plot_pattern, 
                     '<p><em>Diagram generation failed. Please refer to the text solution.</em></p>', 
                     cleaned_response, flags=re.DOTALL)
                 logger.warning("Matplotlib diagram generation failed for text question, removed from response")
         
-        # Ensure the response is properly escaped for JSON
         result = {
             'success': True,
             'solution': cleaned_response,
             'has_diagram': plot_image_url is not None,
-            'diagram_url': plot_image_url
+            'diagram_url': plot_image_url,
+            'api_backend': api_backend,
+            'cached': False
         }
         
-        # Validate JSON before returning
-        # This ensures we're sending valid JSON
-        json.dumps(result)
+        # Cache the result
+        cache_response(cache_key, result)
         
+        json.dumps(result)
         return jsonify(result)
+        
     except Exception as e:
         logger.error('Error in /calculate-text: %s', str(e), exc_info=True)
         return jsonify({
@@ -427,12 +533,33 @@ def calculate_text():
             'error': 'An internal error occurred. Please try again later.'
         }), 500
 
+# Enhanced health check
+@app.route('/health')
+def health_check():
+    """Enhanced health check endpoint"""
+    try:
+        cache_stats = {
+            'entries': len(response_cache),
+            'oldest_entry': min([ts for _, ts in response_cache.values()]) if response_cache else None
+        }
+        
+        return jsonify({
+            'status': 'healthy',
+            'api_backend': api_backend,
+            'project_id': PROJECT_ID if api_backend == 'vertex' else None,
+            'location': LOCATION if api_backend == 'vertex' else None,
+            'cache_stats': cache_stats,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
-    # Make sure static folder exists
     if not os.path.exists('static'):
         os.makedirs('static')
     port = int(os.environ.get("PORT", 5000))
-    # Set debug=False for production
     app.run(debug=False, host='0.0.0.0', port=port)
-    # For production, use a WSGI server like Gunicorn:
-    # gunicorn -w 4 -b 0.0.0.0:5000 app:app
+    # For production: gunicorn -w 4 -b 0.0.0.0:5000 app:app
