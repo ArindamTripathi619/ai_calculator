@@ -19,6 +19,10 @@ import numpy as np
 import networkx as nx
 import uuid
 import io
+import glob
+import time
+import threading
+from datetime import datetime, timedelta
 
 
 # Load environment variables
@@ -60,6 +64,79 @@ limiter = Limiter(
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
+
+# Cleanup configuration
+CLEANUP_INTERVAL = 3600  # Run cleanup every hour (3600 seconds)
+MAX_FILE_AGE = 7200      # Delete files older than 2 hours (7200 seconds)
+MAX_FILES_COUNT = 500    # Maximum number of files to keep
+
+def cleanup_generated_files():
+    """
+    Clean up old generated image files to prevent storage overflow
+    """
+    try:
+        generated_dir = os.path.join('static', 'generated')
+        if not os.path.exists(generated_dir):
+            return
+        
+        current_time = time.time()
+        files_pattern = os.path.join(generated_dir, 'plot_*.png')
+        files = glob.glob(files_pattern)
+        
+        # Sort files by modification time (oldest first)
+        files.sort(key=lambda x: os.path.getmtime(x))
+        
+        deleted_count = 0
+        
+        # Delete files older than MAX_FILE_AGE
+        for file_path in files:
+            file_age = current_time - os.path.getmtime(file_path)
+            if file_age > MAX_FILE_AGE:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                    logger.info(f"Deleted old generated file: {os.path.basename(file_path)} (age: {file_age/3600:.1f} hours)")
+                except OSError as e:
+                    logger.error(f"Failed to delete file {file_path}: {e}")
+        
+        # If we still have too many files, delete the oldest ones
+        remaining_files = [f for f in files if os.path.exists(f)]
+        if len(remaining_files) > MAX_FILES_COUNT:
+            files_to_delete = remaining_files[:-MAX_FILES_COUNT]  # Keep only the newest MAX_FILES_COUNT files
+            for file_path in files_to_delete:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                    logger.info(f"Deleted excess file: {os.path.basename(file_path)} (count management)")
+                except OSError as e:
+                    logger.error(f"Failed to delete excess file {file_path}: {e}")
+        
+        if deleted_count > 0:
+            logger.info(f"Cleanup completed: {deleted_count} files deleted")
+        
+        # Log current file count
+        current_files = len(glob.glob(files_pattern))
+        logger.info(f"Generated files count after cleanup: {current_files}")
+        
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+
+def cleanup_worker():
+    """
+    Background worker that runs cleanup periodically
+    """
+    while True:
+        try:
+            cleanup_generated_files()
+            time.sleep(CLEANUP_INTERVAL)
+        except Exception as e:
+            logger.error(f"Error in cleanup worker: {e}")
+            time.sleep(60)  # Wait 1 minute before retrying
+
+# Start cleanup worker thread
+cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
+cleanup_thread.start()
+logger.info(f"Started cleanup worker thread (interval: {CLEANUP_INTERVAL/3600:.1f}h, max age: {MAX_FILE_AGE/3600:.1f}h)")
 
 # Matplotlib diagram generation function
 def generate_matplotlib_diagram(python_code, output_filename):
@@ -200,6 +277,21 @@ def calculate():
                     f'<div class="math-diagram-container"><img src="{plot_image_url}" alt="Mathematical Diagram" class="math-diagram"></div>', 
                     cleaned_response, flags=re.DOTALL)
                 logger.info(f"Successfully generated matplotlib diagram: {plot_image_url}")
+                
+                # Schedule file deletion after 10 minutes (enough time for user to view)
+                def delayed_delete():
+                    time.sleep(600)  # 10 minutes
+                    try:
+                        file_path = os.path.join('static', 'generated', compiled_image)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            logger.info(f"Deleted served image: {compiled_image}")
+                    except OSError as e:
+                        logger.error(f"Failed to delete served image {compiled_image}: {e}")
+                
+                # Start deletion in background
+                delete_thread = threading.Thread(target=delayed_delete, daemon=True)
+                delete_thread.start()
             else:
                 # Remove plot code if generation failed
                 cleaned_response = re.sub(plot_pattern, 

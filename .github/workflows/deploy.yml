@@ -53,6 +53,12 @@ jobs:
             echo "✅ Dependencies updated"
           fi
           
+          # Ensure required directories exist
+          echo "📁 Ensuring required directories exist..."
+          mkdir -p static/generated
+          chmod 755 static/generated
+          echo "✅ Directory structure verified"
+          
           # Check if backend files changed
           BACKEND_CHANGED=$(git diff $OLD_COMMIT $NEW_COMMIT --name-only | grep -E '\.(py)$' || true)
           
@@ -88,11 +94,24 @@ jobs:
           
           # Verify the application is responding
           echo "🔍 Verifying application health..."
-          sleep 2
+          sleep 3
+          
+          # Test basic endpoint
           if curl -f -s http://127.0.0.1:5000/ > /dev/null; then
             echo "✅ Application is responding correctly"
           else
             echo "⚠️  Application may not be responding properly"
+          fi
+          
+          # Test calculate endpoint with a simple request
+          echo "🧮 Testing AI calculation endpoint..."
+          if curl -f -s -X POST http://127.0.0.1:5000/calculate \
+            -H "Content-Type: application/json" \
+            -d '{"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="}' \
+            --max-time 10 > /dev/null; then
+            echo "✅ AI calculation endpoint is working"
+          else
+            echo "⚠️  AI calculation endpoint may have issues (this could be normal if API key is not configured)"
           fi
           
           echo "🎉 Deployment completed successfully!"
