@@ -89,8 +89,67 @@
         </div>
       </div>
     </div>
-    <div class="canvas-container">
-      <canvas id="drawingCanvas"></canvas>
+    <!-- Input Options Section -->
+    <div class="input-options" id="inputOptions">
+      <div class="input-tabs">
+        <button class="tab-button active" data-tab="draw" id="drawTab">Draw</button>
+        <button class="tab-button" data-tab="upload" id="uploadTab">Upload</button>
+        <button class="tab-button" data-tab="camera" id="cameraTab">Camera</button>
+      </div>
+    </div>
+
+    <!-- Draw Tab Content -->
+    <div class="tab-content active" id="drawContent">
+      <div class="canvas-container">
+        <canvas id="drawingCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Upload Tab Content -->
+    <div class="tab-content" id="uploadContent">
+      <div class="upload-container">
+        <div class="upload-area" id="uploadArea">
+          <div class="upload-icon">📁</div>
+          <h3>Upload Image</h3>
+          <p>Drag and drop an image here or click to browse</p>
+          <input type="file" id="fileInput" accept="image/*" hidden>
+          <button class="button upload-button" id="uploadButton">Choose File</button>
+        </div>
+        <div class="uploaded-image-container" id="uploadedImageContainer" style="display: none;">
+          <img id="uploadedImage" alt="Uploaded equation">
+          <div class="image-actions">
+            <button class="button" id="processUploadedImage">Calculate</button>
+            <button class="button clear-button" id="clearUploadedImage">Remove</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera Tab Content -->
+    <div class="tab-content" id="cameraContent">
+      <div class="camera-container">
+        <div class="camera-area" id="cameraArea">
+          <video id="cameraVideo" autoplay playsinline style="display: none;"></video>
+          <canvas id="cameraCanvas" style="display: none;"></canvas>
+          <div class="camera-controls" id="cameraControls">
+            <div class="camera-icon">📷</div>
+            <h3>Camera Input</h3>
+            <p>Take a photo of your equation</p>
+            <button class="button" id="startCamera">Start Camera</button>
+          </div>
+          <div class="camera-capture" id="cameraCapture" style="display: none;">
+            <button class="button capture-button" id="captureButton">📸 Capture</button>
+            <button class="button clear-button" id="stopCamera">Stop Camera</button>
+          </div>
+        </div>
+        <div class="captured-image-container" id="capturedImageContainer" style="display: none;">
+          <img id="capturedImage" alt="Captured equation">
+          <div class="image-actions">
+            <button class="button" id="processCapturedImage">Calculate</button>
+            <button class="button clear-button" id="clearCapturedImage">Retake</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="result-container" id="resultContainer">

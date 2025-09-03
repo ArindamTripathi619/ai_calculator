@@ -17,7 +17,162 @@ document.addEventListener("DOMContentLoaded", function () {
   const nextButton = document.getElementById("nextButton");
   const skipButton = document.getElementById("skipButton");
 
+  // Input options elements
+  const drawTab = document.getElementById("drawTab");
+  const uploadTab = document.getElementById("uploadTab");
+  const cameraTab = document.getElementById("cameraTab");
+  const drawContent = document.getElementById("drawContent");
+  const uploadContent = document.getElementById("uploadContent");
+  const cameraContent = document.getElementById("cameraContent");
+  
+  // Upload elements
+  const uploadArea = document.getElementById("uploadArea");
+  const fileInput = document.getElementById("fileInput");
+  const uploadButton = document.getElementById("uploadButton");
+  const uploadedImageContainer = document.getElementById("uploadedImageContainer");
+  const uploadedImage = document.getElementById("uploadedImage");
+  const processUploadedImage = document.getElementById("processUploadedImage");
+  const clearUploadedImage = document.getElementById("clearUploadedImage");
+  
+  // Camera elements
+  const startCamera = document.getElementById("startCamera");
+  const stopCamera = document.getElementById("stopCamera");
+  const captureButton = document.getElementById("captureButton");
+  const cameraVideo = document.getElementById("cameraVideo");
+  const cameraCanvas = document.getElementById("cameraCanvas");
+  const cameraControls = document.getElementById("cameraControls");
+  const cameraCapture = document.getElementById("cameraCapture");
+  const capturedImageContainer = document.getElementById("capturedImageContainer");
+  const capturedImage = document.getElementById("capturedImage");
+  const processCapturedImage = document.getElementById("processCapturedImage");
+  const clearCapturedImage = document.getElementById("clearCapturedImage");
+
   let currentStep = 0;
+  let cameraStream = null;
+
+  // Tab switching functionality
+  function switchTab(activeTab) {
+    // Remove active class from all tabs and content
+    document.querySelectorAll('.tab-button').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    // Add active class to selected tab and content
+    document.querySelector(`[data-tab="${activeTab}"]`).classList.add('active');
+    document.getElementById(`${activeTab}Content`).classList.add('active');
+    
+    // Handle canvas resize when switching to draw tab
+    if (activeTab === 'draw') {
+      setTimeout(() => resizeCanvas(), 100);
+    }
+    
+    // Stop camera when switching away from camera tab
+    if (activeTab !== 'camera' && cameraStream) {
+      stopCameraStream();
+    }
+  }
+
+  // Image processing function
+  function processImage(imageDataUrl) {
+    resultBox.innerHTML = "<p>Processing your equation...</p>";
+    resultContainer.style.display = "flex";
+    
+    fetch("/calculate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: imageDataUrl }),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
+        return response.text();
+      })
+      .then((text) => {
+        let data;
+        try { data = JSON.parse(text); } catch (e) { throw new Error("Failed to parse server response as JSON."); }
+        return data;
+      })
+      .then((data) => {
+        if (data.success) {
+          resultBox.innerHTML = data.solution || "Solution processed successfully but was empty.";
+          if (window.MathJax) { try { MathJax.typeset(); } catch (err) { console.error("MathJax error:", err); } }
+        } else {
+          resultBox.innerHTML = `<p>Error: ${data.error || "Unknown error occurred"}</p>`;
+        }
+      })
+      .catch((error) => {
+        resultBox.innerHTML = `<p>Error: ${error.message}</p><p>Please try again or try with a simpler equation.</p>`;
+      });
+  }
+
+  // File upload functionality
+  function handleFileUpload(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('Please select a valid image file.');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      uploadedImage.src = e.target.result;
+      uploadedImageContainer.style.display = 'block';
+      uploadArea.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Camera functionality
+  function startCameraStream() {
+    navigator.mediaDevices.getUserMedia({ 
+      video: { 
+        facingMode: 'environment', // Prefer back camera on mobile
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      } 
+    })
+    .then(function(stream) {
+      cameraStream = stream;
+      cameraVideo.srcObject = stream;
+      cameraVideo.style.display = 'block';
+      cameraControls.style.display = 'none';
+      cameraCapture.style.display = 'flex';
+    })
+    .catch(function(err) {
+      console.error('Error accessing camera:', err);
+      alert('Unable to access camera. Please ensure you have granted camera permissions.');
+    });
+  }
+
+  function stopCameraStream() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+      cameraVideo.style.display = 'none';
+      cameraControls.style.display = 'block';
+      cameraCapture.style.display = 'none';
+    }
+  }
+
+  function capturePhoto() {
+    const canvas = cameraCanvas;
+    const video = cameraVideo;
+    const context = canvas.getContext('2d');
+    
+    // Set canvas size to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw the video frame to canvas
+    context.drawImage(video, 0, 0);
+    
+    // Get image data
+    const imageDataUrl = canvas.toDataURL('image/png');
+    
+    // Display captured image
+    capturedImage.src = imageDataUrl;
+    capturedImageContainer.style.display = 'block';
+    
+    // Stop camera
+    stopCameraStream();
+  }
 
   function highlightElement(selector) {
     const element = document.querySelector(selector);
@@ -38,22 +193,32 @@ document.addEventListener("DOMContentLoaded", function () {
   const steps = [
     {
       title: "Welcome to AI Calculator",
-      description: "This app helps you solve mathematical equations using AI.",
+      description: "This app helps you solve mathematical equations using AI with multiple input methods.",
       highlight: null,
     },
     {
-      title: "Step 1: Draw Your Equation",
-      description: "Use the canvas to draw your equation.",
+      title: "Step 1: Choose Input Method",
+      description: "Select from Draw, Upload, or Camera tabs to input your equation.",
+      highlight: ".input-options",
+    },
+    {
+      title: "Step 2: Draw Your Equation",
+      description: "Use the canvas to draw your equation by hand.",
       highlight: "#drawingCanvas",
     },
     {
-      title: "Step 2: Calculate",
-      description: "Click the 'Calculate' button to get the solution.",
+      title: "Step 3: Upload or Capture",
+      description: "Upload an existing image or use your camera to capture an equation.",
+      highlight: ".tab-button",
+    },
+    {
+      title: "Step 4: Calculate",
+      description: "Click the 'Calculate' button to get the AI-powered solution.",
       highlight: "#calculateButton",
     },
     {
-      title: "Step 3: Toolbar Features",
-      description: "Use Undo, Redo, and Clear buttons for better control.",
+      title: "Step 5: Toolbar Features",
+      description: "Use Undo, Redo, and Clear buttons for better drawing control.",
       highlight: ".toolbar",
     },
   ];
@@ -425,6 +590,64 @@ document.addEventListener("DOMContentLoaded", function () {
   // Initialize the canvas
   resizeCanvas();
 
+  // Tab event listeners
+  drawTab.addEventListener('click', () => switchTab('draw'));
+  uploadTab.addEventListener('click', () => switchTab('upload'));
+  cameraTab.addEventListener('click', () => switchTab('camera'));
+
+  // Upload event listeners
+  uploadButton.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) {
+      handleFileUpload(e.target.files[0]);
+    }
+  });
+
+  // Drag and drop functionality
+  uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('dragover');
+  });
+  
+  uploadArea.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('dragover');
+  });
+  
+  uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files[0]) {
+      handleFileUpload(files[0]);
+    }
+  });
+
+  uploadArea.addEventListener('click', () => fileInput.click());
+
+  processUploadedImage.addEventListener('click', () => {
+    processImage(uploadedImage.src);
+  });
+
+  clearUploadedImage.addEventListener('click', () => {
+    uploadedImageContainer.style.display = 'none';
+    uploadArea.style.display = 'block';
+    fileInput.value = '';
+  });
+
+  // Camera event listeners
+  startCamera.addEventListener('click', startCameraStream);
+  stopCamera.addEventListener('click', stopCameraStream);
+  captureButton.addEventListener('click', capturePhoto);
+
+  processCapturedImage.addEventListener('click', () => {
+    processImage(capturedImage.src);
+  });
+
+  clearCapturedImage.addEventListener('click', () => {
+    capturedImageContainer.style.display = 'none';
+    startCameraStream();
+  });
+
   // Add drawing event listeners
   // Mouse events
   canvas.addEventListener("mousedown", startDrawing);
@@ -441,5 +664,19 @@ document.addEventListener("DOMContentLoaded", function () {
   // Add event listener to close the result overlay
   closeResult.addEventListener("click", function () {
     resultContainer.style.display = "none";
+  });
+
+  // Cleanup camera stream when page is unloaded
+  window.addEventListener('beforeunload', () => {
+    if (cameraStream) {
+      stopCameraStream();
+    }
+  });
+
+  // Handle visibility change (e.g., tab switching)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && cameraStream) {
+      stopCameraStream();
+    }
   });
 });
