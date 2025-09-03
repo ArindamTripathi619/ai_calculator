@@ -1,0 +1,103 @@
+name: Deploy AI Calculator
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2  # Fetch current and previous commit for comparison
+        
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.PORT }}
+        script: |
+          echo "🚀 Starting deployment..."
+          cd /home/DevCrewX/ai_calculator
+          
+          # Store current commit hash
+          OLD_COMMIT=$(git rev-parse HEAD)
+          
+          # Pull latest changes
+          echo "📥 Pulling latest changes..."
+          git pull origin main
+          
+          # Get new commit hash
+          NEW_COMMIT=$(git rev-parse HEAD)
+          
+          # Check if there are actually new changes
+          if [ "$OLD_COMMIT" = "$NEW_COMMIT" ]; then
+            echo "✅ No new changes to deploy"
+            exit 0
+          fi
+          
+          echo "📋 Checking what changed..."
+          
+          # Check if requirements.txt changed
+          if git diff $OLD_COMMIT $NEW_COMMIT --name-only | grep -q "requirements.txt"; then
+            echo "📦 Requirements changed, updating dependencies..."
+            source venv/bin/activate
+            pip install -r requirements.txt
+            echo "✅ Dependencies updated"
+          fi
+          
+          # Check if backend files changed
+          BACKEND_CHANGED=$(git diff $OLD_COMMIT $NEW_COMMIT --name-only | grep -E '\.(py)$' || true)
+          
+          if [ ! -z "$BACKEND_CHANGED" ]; then
+            echo "🔄 Backend files changed: $BACKEND_CHANGED"
+            echo "Restarting Flask application..."
+            
+            # Restart using systemd service
+            sudo systemctl restart ai-calculator
+            sleep 5
+            
+            # Check if service started successfully
+            if sudo systemctl is-active --quiet ai-calculator; then
+              echo "✅ Backend restarted successfully via systemd"
+            else
+              echo "❌ Failed to start backend service, checking logs..."
+              sudo journalctl -u ai-calculator --no-pager -n 20
+              exit 1
+            fi
+          else
+            echo "ℹ️  No backend changes detected"
+          fi
+          
+          # Check if frontend files changed
+          FRONTEND_CHANGED=$(git diff $OLD_COMMIT $NEW_COMMIT --name-only | grep -E '\.(html|css|js|png|jpg|jpeg|gif|svg|ico|mp3|mp4)$' || true)
+          
+          if [ ! -z "$FRONTEND_CHANGED" ]; then
+            echo "🎨 Frontend files changed: $FRONTEND_CHANGED"
+            echo "✅ Frontend files updated (served directly by Flask)"
+          else
+            echo "ℹ️  No frontend changes detected"
+          fi
+          
+          # Verify the application is responding
+          echo "🔍 Verifying application health..."
+          sleep 2
+          if curl -f -s http://127.0.0.1:5000/ > /dev/null; then
+            echo "✅ Application is responding correctly"
+          else
+            echo "⚠️  Application may not be responding properly"
+          fi
+          
+          echo "🎉 Deployment completed successfully!"
+          echo "📊 Deployment Summary:"
+          echo "   - Old commit: $OLD_COMMIT"
+          echo "   - New commit: $NEW_COMMIT"
+          echo "   - Backend changed: $([ ! -z "$BACKEND_CHANGED" ] && echo "Yes" || echo "No")"
+          echo "   - Frontend changed: $([ ! -z "$FRONTEND_CHANGED" ] && echo "Yes" || echo "No")"

@@ -437,4 +437,9 @@ document.addEventListener("DOMContentLoaded", function () {
   canvas.addEventListener("touchmove", handleMove, { passive: false });
   canvas.addEventListener("touchend", stopDrawing);
   canvas.addEventListener("touchcancel", stopDrawing);
+
+  // Add event listener to close the result overlay
+  closeResult.addEventListener("click", function () {
+    resultContainer.style.display = "none";
+  });
 });
