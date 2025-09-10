@@ -318,7 +318,7 @@ def generate_tikz_diagram(tikz_code, output_filename):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create the LaTeX document with TikZ code
             latex_content = f"""
-\\documentclass[border=2pt]{{standalone}}
+\\documentclass[border=10pt,varwidth]{{standalone}}
 \\usepackage{{tikz}}
 \\usepackage{{pgfplots}}
 \\usepackage{{amsmath}}
@@ -327,7 +327,7 @@ def generate_tikz_diagram(tikz_code, output_filename):
 \\pgfplotsset{{compat=1.18}}
 
 \\begin{{document}}
-\\begin{{tikzpicture}}
+\\begin{{tikzpicture}}[auto,node distance=2cm,>=stealth']
 {tikz_code}
 \\end{{tikzpicture}}
 \\end{{document}}
@@ -340,17 +340,25 @@ def generate_tikz_diagram(tikz_code, output_filename):
             
             # Compile with pdflatex
             try:
-                subprocess.run([
+                result = subprocess.run([
                     'pdflatex', 
                     '-interaction=nonstopmode',
                     '-output-directory', temp_dir,
                     tex_file
-                ], check=True, capture_output=True, timeout=30)
+                ], capture_output=True, text=True, timeout=30)
                 
                 pdf_file = os.path.join(temp_dir, 'diagram.pdf')
                 
+                if result.returncode != 0:
+                    logger.error(f"pdflatex failed with return code {result.returncode}")
+                    if result.stdout:
+                        logger.error(f"pdflatex stdout: {result.stdout[-500:]}")  # Last 500 chars
+                    if result.stderr:
+                        logger.error(f"pdflatex stderr: {result.stderr}")
+                    return None
+                
                 if not os.path.exists(pdf_file):
-                    logger.error("PDF file was not generated")
+                    logger.error("PDF file was not generated despite successful compilation")
                     return None
                 
                 # Convert PDF to PNG using ImageMagick or pdftoppm
@@ -359,31 +367,45 @@ def generate_tikz_diagram(tikz_code, output_filename):
                 
                 # Try pdftoppm first (part of poppler-utils)
                 try:
-                    subprocess.run([
+                    result = subprocess.run([
                         'pdftoppm',
                         '-png',
                         '-singlefile',
                         '-r', '300',  # 300 DPI for high quality
                         pdf_file,
                         output_path.replace('.png', '')
-                    ], check=True, capture_output=True, timeout=15)
+                    ], capture_output=True, text=True, timeout=15)
+                    
+                    if result.returncode != 0:
+                        logger.error(f"pdftoppm failed with return code {result.returncode}")
+                        if result.stderr:
+                            logger.error(f"pdftoppm stderr: {result.stderr}")
+                        raise subprocess.CalledProcessError(result.returncode, 'pdftoppm')
                     
                     return f"tikz/{output_filename}"
                     
-                except (subprocess.CalledProcessError, FileNotFoundError):
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    logger.warning(f"pdftoppm failed: {e}, trying ImageMagick convert...")
                     # Fallback to ImageMagick convert if available
                     try:
-                        subprocess.run([
+                        result = subprocess.run([
                             'convert',
                             '-density', '300',
                             '-quality', '100',
                             pdf_file,
                             output_path
-                        ], check=True, capture_output=True, timeout=15)
+                        ], capture_output=True, text=True, timeout=15)
+                        
+                        if result.returncode != 0:
+                            logger.error(f"ImageMagick convert failed with return code {result.returncode}")
+                            if result.stderr:
+                                logger.error(f"convert stderr: {result.stderr}")
+                            return None
                         
                         return f"tikz/{output_filename}"
                         
-                    except (subprocess.CalledProcessError, FileNotFoundError):
+                    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                        logger.error(f"ImageMagick convert also failed: {e}")
                         logger.error("Neither pdftoppm nor ImageMagick convert available for PDF conversion")
                         return None
                 
@@ -391,7 +413,14 @@ def generate_tikz_diagram(tikz_code, output_filename):
                 logger.error("TikZ compilation timed out")
                 return None
             except subprocess.CalledProcessError as e:
-                logger.error(f"TikZ compilation failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+                logger.error(f"TikZ compilation failed with return code {e.returncode}")
+                if e.stdout:
+                    logger.error(f"TikZ stdout: {e.stdout}")
+                if e.stderr:
+                    logger.error(f"TikZ stderr: {e.stderr}")
+                return None
+            except Exception as e:
+                logger.error(f"Unexpected error during TikZ compilation: {str(e)}")
                 return None
                 
     except Exception as e:
