@@ -31,6 +31,9 @@ import uuid
 import io
 import glob
 import threading
+import subprocess
+import tempfile
+import shutil
 from datetime import datetime, timedelta
 
 # Load environment variables
@@ -308,6 +311,93 @@ def generate_matplotlib_diagram(python_code, output_filename):
         plt.close()
         return None
 
+def generate_tikz_diagram(tikz_code, output_filename):
+    """Generate a diagram from TikZ code"""
+    try:
+        # Create a temporary directory for compilation
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create the LaTeX document with TikZ code
+            latex_content = f"""
+\\documentclass[border=2pt]{{standalone}}
+\\usepackage{{tikz}}
+\\usepackage{{pgfplots}}
+\\usepackage{{amsmath}}
+\\usepackage{{amssymb}}
+\\usetikzlibrary{{arrows,automata,positioning,shapes,patterns,decorations.pathreplacing,calc,angles,quotes}}
+\\pgfplotsset{{compat=1.18}}
+
+\\begin{{document}}
+\\begin{{tikzpicture}}
+{tikz_code}
+\\end{{tikzpicture}}
+\\end{{document}}
+"""
+            
+            # Write LaTeX file
+            tex_file = os.path.join(temp_dir, 'diagram.tex')
+            with open(tex_file, 'w') as f:
+                f.write(latex_content)
+            
+            # Compile with pdflatex
+            try:
+                subprocess.run([
+                    'pdflatex', 
+                    '-interaction=nonstopmode',
+                    '-output-directory', temp_dir,
+                    tex_file
+                ], check=True, capture_output=True, timeout=30)
+                
+                pdf_file = os.path.join(temp_dir, 'diagram.pdf')
+                
+                if not os.path.exists(pdf_file):
+                    logger.error("PDF file was not generated")
+                    return None
+                
+                # Convert PDF to PNG using ImageMagick or pdftoppm
+                output_path = os.path.join('static', 'generated', 'tikz', output_filename)
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                
+                # Try pdftoppm first (part of poppler-utils)
+                try:
+                    subprocess.run([
+                        'pdftoppm',
+                        '-png',
+                        '-singlefile',
+                        '-r', '300',  # 300 DPI for high quality
+                        pdf_file,
+                        output_path.replace('.png', '')
+                    ], check=True, capture_output=True, timeout=15)
+                    
+                    return f"tikz/{output_filename}"
+                    
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    # Fallback to ImageMagick convert if available
+                    try:
+                        subprocess.run([
+                            'convert',
+                            '-density', '300',
+                            '-quality', '100',
+                            pdf_file,
+                            output_path
+                        ], check=True, capture_output=True, timeout=15)
+                        
+                        return f"tikz/{output_filename}"
+                        
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        logger.error("Neither pdftoppm nor ImageMagick convert available for PDF conversion")
+                        return None
+                
+            except subprocess.TimeoutExpired:
+                logger.error("TikZ compilation timed out")
+                return None
+            except subprocess.CalledProcessError as e:
+                logger.error(f"TikZ compilation failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+                return None
+                
+    except Exception as e:
+        logger.error(f"Error generating TikZ diagram: {str(e)}")
+        return None
+
 @app.errorhandler(404)
 def not_found_error(error):
     return send_from_directory('static', '404.html'), 404
@@ -345,13 +435,15 @@ def calculate():
             "Format your response as HTML with MathJax-compatible LaTeX for all mathematical expressions. "
             "Use \\( \\) for inline math and \\[ \\] for display math. "
             "Include step-by-step explanations where appropriate. "
-            "If the problem would benefit from a visual diagram (graphs, plots, functions, geometry, etc.), "
-            "include Python matplotlib code wrapped in <!--PLOT-START--> and <!--PLOT-END--> tags. "
-            "The code should use matplotlib (plt) and numpy (np) to create clear, labeled diagrams. "
-            "Examples: function plots, geometric shapes, coordinate systems, statistical charts, etc. "
-            "Make sure to include proper labels, titles, and formatting for clarity. "
+            "If the problem would benefit from a visual diagram, choose the appropriate method: "
+            "For simple plots, graphs, and statistical charts, use Python matplotlib code wrapped in <!--PLOT-START--> and <!--PLOT-END--> tags. "
+            "For complex diagrams like DFAs, NFAs, flowcharts, automata, trees, complex geometric constructions, or formal structures, "
+            "use TikZ code wrapped in <!--TIKZ-START--> and <!--TIKZ-END--> tags. "
+            "For matplotlib: Use plt, np, numpy, matplotlib and standard math functions with proper labels and titles. "
+            "For TikZ: Use standard TikZ syntax with automata, positioning, shapes libraries available. "
             "IMPORTANT: Do not include any markdown code block markers (like ```python or ```) in your response. "
-            "IMPORTANT: Only use plt, np, numpy, matplotlib and standard math functions in the code. "
+            "IMPORTANT: Choose TikZ for formal computer science diagrams, automata, complex geometric proofs, trees. "
+            "Choose matplotlib for function plots, statistical charts, simple geometric shapes. "
             "Do not reference 'python' as a variable or function name. "
             "Keep your response concise and focused on the solution."
         )
@@ -365,10 +457,16 @@ def calculate():
         cleaned_response = re.sub(r'\s*```$', '', cleaned_response)
         cleaned_response = re.sub(r'```\w*\s*|\s*```', '', cleaned_response)
         
-        # Extract and process matplotlib code
+        # Extract and process diagram code (matplotlib or TikZ)
         plot_image_url = None
+        
+        # Check for matplotlib code first
         plot_pattern = r'<!--PLOT-START-->(.*?)<!--PLOT-END-->'
         plot_match = re.search(plot_pattern, cleaned_response, re.DOTALL)
+        
+        # Check for TikZ code
+        tikz_pattern = r'<!--TIKZ-START-->(.*?)<!--TIKZ-END-->'
+        tikz_match = re.search(tikz_pattern, cleaned_response, re.DOTALL)
         
         if plot_match:
             plot_code = plot_match.group(1).strip()
@@ -402,6 +500,37 @@ def calculate():
                     '<p><em>Diagram generation failed. Please refer to the text solution.</em></p>', 
                     cleaned_response, flags=re.DOTALL)
                 logger.warning("Matplotlib diagram generation failed, removed from response")
+        
+        elif tikz_match:
+            tikz_code = tikz_match.group(1).strip()
+            
+            image_filename = f"tikz_{uuid.uuid4().hex[:8]}.png"
+            compiled_image = generate_tikz_diagram(tikz_code, image_filename)
+            
+            if compiled_image:
+                plot_image_url = f"/static/generated/{compiled_image}"
+                cleaned_response = re.sub(tikz_pattern, 
+                    f'<div class="math-diagram-container"><img src="{plot_image_url}" alt="Mathematical Diagram" class="math-diagram"></div>', 
+                    cleaned_response, flags=re.DOTALL)
+                logger.info(f"Successfully generated TikZ diagram: {plot_image_url}")
+                
+                def delayed_delete():
+                    time.sleep(600)
+                    try:
+                        file_path = os.path.join('static', 'generated', compiled_image)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            logger.info(f"Deleted served image: {compiled_image}")
+                    except OSError as e:
+                        logger.error(f"Failed to delete served image {compiled_image}: {e}")
+                
+                delete_thread = threading.Thread(target=delayed_delete, daemon=True)
+                delete_thread.start()
+            else:
+                cleaned_response = re.sub(tikz_pattern, 
+                    '<p><em>Diagram generation failed. Please refer to the text solution.</em></p>', 
+                    cleaned_response, flags=re.DOTALL)
+                logger.warning("TikZ diagram generation failed, removed from response")
         
         result = {
             'success': True,
@@ -453,14 +582,15 @@ def calculate_text():
             "Provide a complete solution with step-by-step explanations. "
             "Format your response as HTML with MathJax-compatible LaTeX for all mathematical expressions. "
             "Use \\( \\) for inline math and \\[ \\] for display math. "
-            "If the problem would benefit from a visual diagram (graphs, plots, functions, geometry, etc.), "
-            "include Python matplotlib code wrapped in <!--PLOT-START--> and <!--PLOT-END--> tags. "
-            "The code should use matplotlib (plt) and numpy (np) to create clear, labeled diagrams. "
-            "Examples: function plots, geometric shapes, coordinate systems, statistical charts, etc. "
-            "Make sure to include proper labels, titles, and formatting for clarity. "
+            "If the problem would benefit from a visual diagram, choose the appropriate method: "
+            "For simple plots, graphs, and statistical charts, use Python matplotlib code wrapped in <!--PLOT-START--> and <!--PLOT-END--> tags. "
+            "For complex diagrams like DFAs, NFAs, flowcharts, automata, trees, complex geometric constructions, or formal structures, "
+            "use TikZ code wrapped in <!--TIKZ-START--> and <!--TIKZ-END--> tags. "
+            "For matplotlib: Use plt, np, numpy, matplotlib and standard math functions with proper labels and titles. "
+            "For TikZ: Use standard TikZ syntax with automata, positioning, shapes libraries available. "
             "IMPORTANT: Do not include any markdown code block markers (like ```python or ```) in your response. "
-            "IMPORTANT: Only use plt, np, numpy, matplotlib and standard math functions in the code. "
-            "Do not reference 'python' as a variable or function name. "
+            "IMPORTANT: Choose TikZ for formal computer science diagrams, automata, complex geometric proofs, trees. "
+            "Choose matplotlib for function plots, statistical charts, simple geometric shapes. "
             "Keep your response clear, concise and mathematically accurate. "
             f"Question: {question_text}"
         )
@@ -474,9 +604,16 @@ def calculate_text():
         cleaned_response = re.sub(r'\s*```$', '', cleaned_response)
         cleaned_response = re.sub(r'```\w*\s*|\s*```', '', cleaned_response)
         
+        # Extract and process diagram code (matplotlib or TikZ)
         plot_image_url = None
+        
+        # Check for matplotlib code first
         plot_pattern = r'<!--PLOT-START-->(.*?)<!--PLOT-END-->'
         plot_match = re.search(plot_pattern, cleaned_response, re.DOTALL)
+        
+        # Check for TikZ code
+        tikz_pattern = r'<!--TIKZ-START-->(.*?)<!--TIKZ-END-->'
+        tikz_match = re.search(tikz_pattern, cleaned_response, re.DOTALL)
         
         if plot_match:
             plot_code = plot_match.group(1).strip()
@@ -499,7 +636,7 @@ def calculate_text():
                         file_path = os.path.join('static', 'generated', compiled_image)
                         if os.path.exists(file_path):
                             os.remove(file_path)
-                            logger.info(f"Deleted served image from text question: {compiled_image}")
+                            logger.info(f"Deleted served image: {compiled_image}")
                     except OSError as e:
                         logger.error(f"Failed to delete served image {compiled_image}: {e}")
                 
@@ -509,7 +646,38 @@ def calculate_text():
                 cleaned_response = re.sub(plot_pattern, 
                     '<p><em>Diagram generation failed. Please refer to the text solution.</em></p>', 
                     cleaned_response, flags=re.DOTALL)
-                logger.warning("Matplotlib diagram generation failed for text question, removed from response")
+                logger.warning("Matplotlib diagram generation failed for text question")
+        
+        elif tikz_match:
+            tikz_code = tikz_match.group(1).strip()
+            
+            image_filename = f"tikz_{uuid.uuid4().hex[:8]}.png"
+            compiled_image = generate_tikz_diagram(tikz_code, image_filename)
+            
+            if compiled_image:
+                plot_image_url = f"/static/generated/{compiled_image}"
+                cleaned_response = re.sub(tikz_pattern, 
+                    f'<div class="math-diagram-container"><img src="{plot_image_url}" alt="Mathematical Diagram" class="math-diagram"></div>', 
+                    cleaned_response, flags=re.DOTALL)
+                logger.info(f"Successfully generated TikZ diagram for text question: {plot_image_url}")
+                
+                def delayed_delete():
+                    time.sleep(600)
+                    try:
+                        file_path = os.path.join('static', 'generated', compiled_image)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            logger.info(f"Deleted served image: {compiled_image}")
+                    except OSError as e:
+                        logger.error(f"Failed to delete served image {compiled_image}: {e}")
+                
+                delete_thread = threading.Thread(target=delayed_delete, daemon=True)
+                delete_thread.start()
+            else:
+                cleaned_response = re.sub(tikz_pattern, 
+                    '<p><em>Diagram generation failed. Please refer to the text solution.</em></p>', 
+                    cleaned_response, flags=re.DOTALL)
+                logger.warning("TikZ diagram generation failed for text question")
         
         result = {
             'success': True,
