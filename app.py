@@ -322,14 +322,54 @@ def generate_tikz_diagram(tikz_code, output_filename):
             # Replace unescaped $ with \$ for LaTeX compatibility
             cleaned_tikz_code = re.sub(r'(?<!\\)\$', r'\\$', cleaned_tikz_code)
             
+            # Remove any documentclass and preamble from AI-generated code
+            # as our template provides the document structure
+            lines = cleaned_tikz_code.split('\n')
+            tikz_lines = []
+            inside_tikzpicture = False
+            skip_line = False
+            
+            for line in lines:
+                line_stripped = line.strip()
+                
+                # Skip document structure lines
+                if (line_stripped.startswith('\\documentclass') or
+                    line_stripped.startswith('\\usepackage') or 
+                    line_stripped.startswith('\\usetikzlibrary') or
+                    line_stripped.startswith('\\pgfplotsset') or
+                    line_stripped == '\\begin{document}' or
+                    line_stripped == '\\end{document}'):
+                    continue
+                
+                # Handle tikzpicture environment - extract only the content
+                if line_stripped.startswith('\\begin{tikzpicture}'):
+                    inside_tikzpicture = True
+                    continue
+                elif line_stripped == '\\end{tikzpicture}':
+                    inside_tikzpicture = False
+                    continue
+                elif inside_tikzpicture or not any(x in line_stripped for x in ['\\documentclass', '\\begin{document}', '\\end{document}']):
+                    tikz_lines.append(line)
+            
+            cleaned_tikz_code = '\n'.join(tikz_lines).strip()
+            
+            # Add explicit bounding box to prevent cropping for wide diagrams
+            if 'binary tree' in tikz_code.lower() or 'tree' in tikz_code.lower() or 'wide' in tikz_code.lower():
+                cleaned_tikz_code = f"""% Explicit bounding box for wide diagrams
+\\path[use as bounding box] (-12,-8) rectangle (12,6);
+{cleaned_tikz_code}"""
+            
+            # Debug: Log the TikZ code being processed
+            logger.info(f"Processing TikZ code: {cleaned_tikz_code[:200]}...")
+            
             # Create the LaTeX document with TikZ code
             latex_content = f"""
-\\documentclass[border=20pt]{{standalone}}
+\\documentclass[border=30pt]{{standalone}}
 \\usepackage{{tikz}}
 \\usepackage{{pgfplots}}
 \\usepackage{{amsmath}}
 \\usepackage{{amssymb}}
-\\usetikzlibrary{{arrows,automata,positioning,shapes,patterns,decorations.pathreplacing,calc,angles,quotes}}
+\\usetikzlibrary{{arrows,automata,positioning,shapes,patterns,decorations.pathreplacing,calc,angles,quotes,trees}}
 \\pgfplotsset{{compat=1.18}}
 
 \\begin{{document}}
@@ -357,6 +397,8 @@ def generate_tikz_diagram(tikz_code, output_filename):
                 
                 if result.returncode != 0:
                     logger.error(f"pdflatex failed with return code {result.returncode}")
+                    logger.error(f"LaTeX content that failed:")
+                    logger.error(latex_content)
                     if result.stdout:
                         logger.error(f"pdflatex stdout: {result.stdout[-500:]}")  # Last 500 chars
                     if result.stderr:
@@ -476,6 +518,9 @@ def calculate():
             "use TikZ code wrapped in <!--TIKZ-START--> and <!--TIKZ-END--> tags. "
             "For matplotlib: Use plt, np, numpy, matplotlib and standard math functions with proper labels and titles. "
             "For TikZ: Use standard TikZ syntax with automata, positioning, shapes libraries available. "
+            "When creating TikZ tree diagrams, ensure adequate spacing between nodes by using appropriate sibling distances. "
+            "For binary trees, use sibling distances of at least 4cm for level 1, 2cm for level 2, 1cm for level 3, etc. "
+            "Make sure nodes don't overlap and text is clearly readable. "
             "IMPORTANT: Do not include any markdown code block markers (like ```python or ```) in your response. "
             "IMPORTANT: Choose TikZ for formal computer science diagrams, automata, complex geometric proofs, trees. "
             "Choose matplotlib for function plots, statistical charts, simple geometric shapes. "
@@ -623,6 +668,9 @@ def calculate_text():
             "use TikZ code wrapped in <!--TIKZ-START--> and <!--TIKZ-END--> tags. "
             "For matplotlib: Use plt, np, numpy, matplotlib and standard math functions with proper labels and titles. "
             "For TikZ: Use standard TikZ syntax with automata, positioning, shapes libraries available. "
+            "When creating TikZ tree diagrams, ensure adequate spacing between nodes by using appropriate sibling distances. "
+            "For binary trees, use sibling distances of at least 4cm for level 1, 2cm for level 2, 1cm for level 3, etc. "
+            "Make sure nodes don't overlap and text is clearly readable. "
             "IMPORTANT: Do not include any markdown code block markers (like ```python or ```) in your response. "
             "IMPORTANT: Choose TikZ for formal computer science diagrams, automata, complex geometric proofs, trees. "
             "Choose matplotlib for function plots, statistical charts, simple geometric shapes. "
