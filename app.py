@@ -316,9 +316,15 @@ def generate_tikz_diagram(tikz_code, output_filename):
     try:
         # Create a temporary directory for compilation
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Clean and prepare TikZ code
+            # Ensure proper escaping of dollar signs for LaTeX math mode
+            cleaned_tikz_code = tikz_code.strip()
+            # Replace unescaped $ with \$ for LaTeX compatibility
+            cleaned_tikz_code = re.sub(r'(?<!\\)\$', r'\\$', cleaned_tikz_code)
+            
             # Create the LaTeX document with TikZ code
             latex_content = f"""
-\\documentclass[border=10pt,varwidth]{{standalone}}
+\\documentclass[border=20pt]{{standalone}}
 \\usepackage{{tikz}}
 \\usepackage{{pgfplots}}
 \\usepackage{{amsmath}}
@@ -328,7 +334,7 @@ def generate_tikz_diagram(tikz_code, output_filename):
 
 \\begin{{document}}
 \\begin{{tikzpicture}}[auto,node distance=2cm,>=stealth']
-{tikz_code}
+{cleaned_tikz_code}
 \\end{{tikzpicture}}
 \\end{{document}}
 """
