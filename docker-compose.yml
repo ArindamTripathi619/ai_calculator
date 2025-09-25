@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  web:
+    build: .
+    container_name: aicalc_web
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    environment:
+      - REDIS_URL=redis://redis:6379
+    command: gunicorn app:app -w 4 -b 0.0.0.0:5000
+  redis:
+    image: redis:7
+    container_name: aicalc_redis
+    restart: always
+    ports:
+      - "6379:6379"

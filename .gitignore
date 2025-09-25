@@ -2,6 +2,7 @@
 __pycache__/
 env/
 venv/
+.venv/
 *.pyc
 
 # Google Cloud credentials (NEVER commit these!)

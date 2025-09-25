@@ -651,7 +651,10 @@ document.addEventListener("DOMContentLoaded", function () {
   if (textTab) textTab.addEventListener('click', () => switchTab('text'));
 
   // Upload event listeners
-  if (uploadButton) uploadButton.addEventListener('click', () => fileInput.click());
+  if (uploadButton) uploadButton.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent bubbling to uploadArea
+    fileInput.click();
+  });
   if (fileInput) fileInput.addEventListener('change', (e) => {
     if (e.target.files[0]) {
       handleFileUpload(e.target.files[0]);
@@ -677,7 +680,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  uploadArea.addEventListener('click', () => fileInput.click());
+  uploadArea.addEventListener('click', (e) => {
+    // Only trigger if the click is directly on the uploadArea, not its children
+    if (e.target === uploadArea) {
+      fileInput.click();
+    }
+  });
 
   processUploadedImage.addEventListener('click', () => {
     processImage(uploadedImage.src);
