@@ -9,11 +9,15 @@ A modern AI-powered calculator app built with Flask and integrated with Google's
 
 ## 🚀 Features
 - **AI-Powered Calculations**: Leverages Google's Gemini API for advanced generative capabilities.
+- **Fallback AI Model**: Uses OpenRouter Qwen 2.5 32B Vision model automatically when Gemini API quota is exhausted.
+- **Modular Backend**: The backend code is fully modularized for maintainability.
+- **Dockerized Deployment**: Easily deployable using Docker and Docker Compose.
 - **Visual Diagrams**: Automatically generates mathematical diagrams using matplotlib when beneficial (graphs, plots, functions, geometry, etc.).
 - **User-Friendly Design**: Intuitive UI with responsive design.
 - **Error Handling**: Robust mechanisms for handling invalid inputs gracefully and user-friendly error pages (404, 500).
 - **Static File Serving**: Efficient static file serving using Flask's `send_from_directory`.
 - **Rate Limiting**: Protects endpoints with configurable rate limits using Flask-Limiter and Redis.
+6. **Fallback Logic**: If Gemini API quota is exhausted, the app automatically falls back to OpenRouter Qwen 2.5 32B Vision model for AI-powered calculations.
 - **CORS Security**: Restricts cross-origin requests via environment variable configuration.
 - **Logging**: Logs errors and important events for easier debugging and monitoring.
 - **Production Ready**: Designed to run with Gunicorn and Redis for scalable deployments.
@@ -71,38 +75,31 @@ AI_Calculator/
 ## ✨ How It Works
 1. **Input Handling**: Users draw equations on the web interface.
 2. **AI-Powered Calculations**: The app uses Google's Gemini API for advanced generative calculations.
+- **Fallback AI Model**: Uses OpenRouter Qwen 2.5 32B Vision model automatically when Gemini API quota is exhausted.
+- **Modular Backend**: The backend code is fully modularized for maintainability.
+- **Dockerized Deployment**: Easily deployable using Docker and Docker Compose.
 3. **Visual Diagrams**: For problems that benefit from visual representation (functions, graphs, geometry), the AI generates matplotlib/Python code which is automatically executed to create PNG images.
 4. **Rate Limiting**: API endpoints are protected from abuse using Redis-backed rate limiting.
+6. **Fallback Logic**: If Gemini API quota is exhausted, the app automatically falls back to OpenRouter Qwen 2.5 32B Vision model for AI-powered calculations.
 5. **CORS Security**: Only allowed origins can access the API, as configured in the `.env` file.
 
 ---
 
-## ⚙️ Installation & Deployment
-1. Clone this repository:
+## ⚙️ Docker Deployment
+
+1. Build and run with Docker Compose:
+
    ```bash
-   git clone https://github.com/arindam-tripathi/AI_Calculator.git
-   cd AI_Calculator
+
+   sudo docker compose up --build -d
+
    ```
-2. Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-   pip install -r requirements.txt
-   ```
-3. Set up environment variables in the `.env` file (see below for details).
-4. **Install and start Redis** (for rate limiting):
-   - On Arch: `sudo pacman -S redis`
-   - Start: `sudo systemctl start redis`
-   - Enable on boot: `sudo systemctl enable redis`
-5. **Install matplotlib and numpy** (for diagram generation):
-   ```bash
-   pip install matplotlib numpy
-   ```
-6. **Run the Flask application (development only):**
-   ```bash
-   python app.py
-   ```
-6. **Run in production with Gunicorn:**
+
+2. Configure your `.env` file as described below.
+
+3. Redis will be started automatically as a service.
+
+
    ```bash
    gunicorn -w 4 -b 0.0.0.0:5000 app:app
    ```
@@ -124,6 +121,8 @@ To use Google's Gemini API and configure CORS:
 Create a `.env` file in the project root and add the following:
 ```plaintext
 GEMINI_API_KEY=your_api_key_here
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_VISION_MODEL=qwen/qwen-2.5-32b-instruct
 CORS_ALLOWED_ORIGINS=https://aicalculator.devcrewx.tech,https://devcrewx.tech
 REDIS_URL=redis://localhost:6379
 ```

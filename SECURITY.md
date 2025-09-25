@@ -136,3 +136,42 @@ For security-related inquiries:
 ## Acknowledgments
 
 We thank the security community for helping us maintain a secure application.
+## Docker & Container Security
+
+- Keep Docker and system packages up to date.
+
+- Run containers with least privilege.
+
+- Use official base images and scan for vulnerabilities.
+
+
+
+## Secrets Management
+
+- Store API keys and credentials in .env (not committed to git).
+
+- Use GitHub Actions secrets for deployment credentials.
+
+
+
+## API Key Handling
+
+- Both Gemini and OpenRouter API keys are required for full functionality.
+
+- Never expose API keys in public repositories.
+
+
+
+## Network Security
+
+- Only expose necessary ports (e.g., 5000).
+
+- Use HTTPS and a reverse proxy (Nginx) in production.
+
+
+
+## Modularization
+
+- Modular code structure improves maintainability and security by isolating sensitive logic.
+
+
